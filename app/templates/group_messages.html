@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Group Messages</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Arial Black', Arial, sans-serif;
+            background-color: #67e8f9;
+            padding: 2rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 3.5rem;
+            font-weight: 900;
+            color: black;
+            margin-bottom: 1rem;
+            text-transform: uppercase;
+            letter-spacing: -2px;
+            text-shadow: 6px 6px 0px rgba(255, 255, 255, 0.5);
+        }
+
+        .header-line {
+            height: 12px;
+            width: 128px;
+            background-color: #fde047;
+            border: 4px solid black;
+            margin-bottom: 2rem;
+        }
+
+        .filters {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .filter-btn {
+            padding: 0.75rem 1.5rem;
+            border: 4px solid black;
+            background-color: #e5e7eb;
+            color: #1f2937;
+            font-weight: bold;
+            text-transform: uppercase;
+            cursor: pointer;
+            transition: all 0.2s;
+            box-shadow: 4px 4px 0px 0px rgba(0, 0, 0, 1);
+            font-size: 0.875rem;
+            letter-spacing: 0.05em;
+        }
+
+        .filter-btn:hover {
+            box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+            transform: translate(-2px, -2px);
+        }
+
+        .filter-btn:active {
+            box-shadow: none;
+            transform: translate(4px, 4px);
+        }
+
+        .filter-btn.active {
+            box-shadow: 6px 6px 0px 0px rgba(0, 0, 0, 1);
+        }
+
+        .filter-btn.active.alert {
+            background-color: #f87171;
+            color: black;
+        }
+
+        .filter-btn.active.info {
+            background-color: #60a5fa;
+            color: black;
+        }
+
+        .filter-btn.active.notification {
+            background-color: #4ade80;
+            color: black;
+        }
+
+        .filter-btn.active.other {
+            background-color: #c084fc;
+            color: black;
+        }
+
+        .results-count {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: white;
+            border: 4px solid black;
+            font-weight: bold;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .tiles-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+        }
+
+        .tile {
+            background-color: white;
+            border: 4px solid black;
+            padding: 1.5rem;
+            box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+            transition: all 0.3s;
+        }
+
+        .tile:hover {
+            box-shadow: 12px 12px 0px 0px rgba(0, 0, 0, 1);
+            transform: translate(-4px, -4px);
+        }
+
+        .tile.hidden {
+            display: none;
+        }
+
+        .tile.alert {
+            background-color: #fecaca;
+        }
+
+        .tile.info {
+            background-color: #bfdbfe;
+        }
+
+        .tile.notification {
+            background-color: #bbf7d0;
+        }
+
+        .tile.other {
+            background-color: #e9d5ff;
+        }
+
+        .tile-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+            border-bottom: 2px solid black;
+            padding-bottom: 0.75rem;
+        }
+
+        .tile-user {
+            font-weight: bold;
+            font-size: 1rem;
+            color: #111827;
+        }
+
+        .tile-timestamp {
+            font-size: 0.75rem;
+            color: #666666;
+            text-align: right;
+        }
+
+        .tile-tag {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            background-color: #fde047;
+            border: 3px solid black;
+            font-weight: bold;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            margin-bottom: 1rem;
+        }
+
+        .tile-message {
+            color: #111827;
+            line-height: 1.6;
+            font-weight: 500;
+            font-family: Arial, sans-serif;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 3rem;
+            background-color: white;
+            border: 4px solid black;
+            font-size: 1.25rem;
+            color: #666666;
+            box-shadow: 8px 8px 0px 0px rgba(0, 0, 0, 1);
+        }
+
+        @media (max-width: 768px) {
+            h1 {
+                font-size: 2rem;
+            }
+
+            .filter-btn {
+                padding: 0.5rem 1rem;
+                font-size: 0.75rem;
+            }
+
+            .tile {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Group Messages</h1>
+        <div class="header-line"></div>
+
+        <div class="filters" id="filters">
+            <!-- Filter buttons will be generated by JavaScript -->
+        </div>
+
+        <div class="results-count" id="resultsCount">0 MESSAGES</div>
+
+        <div class="tiles-container" id="tilesContainer">
+            <!-- Tiles will be generated by JavaScript -->
+        </div>
+    </div>
+
+    <script>
+        // Get messages from the data attribute
+        const messagesData = JSON.parse(document.body.getAttribute('data-messages') || '[]');
+
+        let activeFilter = null;
+
+        // Function to auto-detect tag based on message content
+        function detectTag(message) {
+            const text = message.toLowerCase();
+            if (text.includes('error') || text.includes('failed') || text.includes('critical')) {
+                return 'alert';
+            } else if (text.includes('info') || text.includes('update') || text.includes('status')) {
+                return 'info';
+            } else if (text.includes('notice') || text.includes('reminder') || text.includes('notify')) {
+                return 'notification';
+            }
+            return 'other';
+        }
+
+        // Transform messages with tags
+        const tiles = messagesData.map(msg => ({
+            id: msg.id,
+            tag: detectTag(msg.message_text),
+            message: msg.message_text,
+            user: msg.first_name || msg.username || `User ${msg.telegram_user_id}`,
+            timestamp: new Date(msg.created_at).toLocaleString()
+        }));
+
+        // Get unique tags
+        const tags = [...new Set(tiles.map(tile => tile.tag))].sort();
+
+        // Initialize the app
+        function init() {
+            renderFilters();
+            renderTiles();
+        }
+
+        // Render filter buttons
+        function renderFilters() {
+            const filtersContainer = document.getElementById('filters');
+            if (tags.length === 0) {
+                filtersContainer.innerHTML = '<p style="color: #666;">No messages to filter</p>';
+                return;
+            }
+            filtersContainer.innerHTML = tags.map(tag => `
+                <button class="filter-btn ${tag.toLowerCase()}" onclick="toggleFilter('${tag}')">
+                    ${tag.charAt(0).toUpperCase() + tag.slice(1)}
+                </button>
+            `).join('');
+        }
+
+        // Render tiles
+        function renderTiles() {
+            const tilesContainer = document.getElementById('tilesContainer');
+            const filteredTiles = activeFilter 
+                ? tiles.filter(tile => tile.tag === activeFilter)
+                : tiles;
+
+            if (filteredTiles.length === 0) {
+                tilesContainer.innerHTML = '<div class="empty-state">No messages found</div>';
+                updateResultsCount(0);
+                return;
+            }
+
+            tilesContainer.innerHTML = filteredTiles.map(tile => `
+                <div class="tile ${tile.tag.toLowerCase()}" data-tag="${tile.tag}">
+                    <div class="tile-header">
+                        <span class="tile-user">${escapeHtml(tile.user)}</span>
+                        <span class="tile-timestamp">${tile.timestamp}</span>
+                    </div>
+                    <span class="tile-tag">${tile.tag.toUpperCase()}</span>
+                    <p class="tile-message">${escapeHtml(tile.message)}</p>
+                </div>
+            `).join('');
+
+            updateResultsCount(filteredTiles.length);
+        }
+
+        // Toggle filter
+        function toggleFilter(tag) {
+            if (activeFilter === tag) {
+                activeFilter = null;
+            } else {
+                activeFilter = tag;
+            }
+            
+            // Update button states
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            if (activeFilter) {
+                const activeBtn = Array.from(document.querySelectorAll('.filter-btn'))
+                    .find(btn => btn.textContent.trim().toLowerCase() === activeFilter.toLowerCase());
+                if (activeBtn) {
+                    activeBtn.classList.add('active');
+                }
+            }
+            
+            renderTiles();
+        }
+
+        // Update results count
+        function updateResultsCount(count) {
+            const resultsCount = document.getElementById('resultsCount');
+            const messageText = count === 1 ? 'MESSAGE' : 'MESSAGES';
+            const filterText = activeFilter ? ` IN "${activeFilter.toUpperCase()}"` : '';
+            resultsCount.textContent = `${count} ${messageText}${filterText}`;
+        }
+
+        // Escape HTML to prevent XSS
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // Initialize on page load
+        init();
+    </script>
+</body>
+</html>

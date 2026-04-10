@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: logbuk_db
+    environment:
+      POSTGRES_PASSWORD: logbuk123
+      POSTGRES_DB: logbuk_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - logbuk_postgres_data:/var/lib/postgresql/data
+
+  api:
+    build: .
+    container_name: logbuk_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app  # Mount app code for hot reload
+      - ./alembic:/app/alembic  # Mount migrations
+      - ./alembic.ini:/app/alembic.ini  # Mount alembic config
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:logbuk123@db:5432/logbuk_db
+      BOT_USERNAME: logbuk_bot
+      NER_SERVICE_URL: http://localhost:8001
+      PYTHONPATH: /app
+    depends_on:
+      - db
+    # command: ["sh", "-c", "sleep 5 && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+    command: ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+
+  # Optional: Adminer for database management
+  # adminer:
+  #   image: adminer
+  #   container_name: logbuk_adminer
+  #   ports:
+  #     - "8080:8080"
+  #   depends_on:
+  #     - db
+  #   environment:
+  #     ADMINER_DEFAULT_SERVER: db
+
+volumes:
+  logbuk_postgres_data:

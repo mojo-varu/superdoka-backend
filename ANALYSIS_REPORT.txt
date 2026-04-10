@@ -1,0 +1,168 @@
+================================================================================
+BACKEND CODE ANALYSIS: Add Operator 500 Error
+================================================================================
+
+FILE: app/api/v1/endpoints/owners.py
+
+ISSUE SEVERITY: CRITICAL
+
+================================================================================
+PROBLEM STATEMENT
+================================================================================
+
+When the bot calls POST /api/v1/owner/operators to add an operator, the backend
+returns HTTP 500 "Internal server error" instead of creating the operator.
+
+This blocks testing of:
+  - Add operator functionality
+  - List operators
+  - Assign operator to machine
+
+================================================================================
+ROOT CAUSE ANALYSIS
+================================================================================
+
+The code references an undefined variable/enum called "UserTypeEnum" in 4 places:
+
+  Line 321 (add_operator):     User.user_type == UserTypeEnum.OPERATOR.value
+  Line 333 (add_operator):     user_type=UserTypeEnum.OPERATOR.value
+  Line 370 (get_operators):    User.user_type == UserTypeEnum.OPERATOR.value
+  Line 405 (assign_operator):  User.user_type == UserTypeEnum.OPERATOR.value
+
+When Python tries to execute any of these lines, it raises:
+  NameError: name 'UserTypeEnum' is not defined
+
+This exception is caught by the generic exception handler (lines 356-358),
+which returns a 500 error instead of a helpful error message.
+
+THE CORRECT ENUM IS: UserType (not UserTypeEnum)
+  - Located in: app/db/models.py
+  - Defined as: class UserType(enum.Enum)
+  - Contains: OWNER = "OWNER", OPERATOR = "OPERATOR"
+
+================================================================================
+DETAILED BREAKDOWN
+================================================================================
+
+Lines 307-358: add_operator() function
+  • Line 321: Query check for existing operator
+    BROKEN: User.user_type == UserTypeEnum.OPERATOR.value
+    
+  • Line 333: Create new operator object
+    BROKEN: user_type=UserTypeEnum.OPERATOR.value
+
+Lines 360-375: get_operators() function
+  • Line 370: Query for operators
+    BROKEN: User.user_type == UserTypeEnum.OPERATOR.value
+
+Lines 377-463: assign_operator() function
+  • Line 405: Query for operator when assigning
+    BROKEN: User.user_type == UserTypeEnum.OPERATOR.value
+
+ALSO IN COMMENTED CODE (Lines 186-239):
+  • Line 201: User.user_type == UserTypeEnum.OWNER.value
+  • Line 213: user_type=UserTypeEnum.OWNER.value
+
+================================================================================
+RECOMMENDED FIX (Option A - String Literals)
+================================================================================
+
+Replace these 6 occurrences:
+  UserTypeEnum.OPERATOR.value  →  "OPERATOR"
+  UserTypeEnum.OWNER.value     →  "OWNER"
+
+Why this approach:
+  ✓ Minimal changes (6 one-liners)
+  ✓ No additional imports needed
+  ✓ Aligns with database CheckConstraint: "user_type IN ('OWNER', 'OPERATOR')"
+  ✓ Simple and clear
+  ✓ No risk of breaking existing code
+
+Example change:
+  Line 321 BEFORE: User.user_type == UserTypeEnum.OPERATOR.value
+  Line 321 AFTER:  User.user_type == "OPERATOR"
+
+================================================================================
+ALTERNATIVE FIX (Option B - Use Enum)
+================================================================================
+
+1. Update import on line 15:
+   FROM: from app.db.models import User, Machine, ..., ActivityLog
+   TO:   from app.db.models import User, Machine, ..., ActivityLog, UserType
+
+2. Replace the 6 occurrences:
+   UserTypeEnum.OPERATOR.value  →  UserType.OPERATOR.value
+   UserTypeEnum.OWNER.value     →  UserType.OWNER.value
+
+Why this approach:
+  ✓ Type-safe
+  ✓ Single source of truth
+  ✓ Self-documenting code
+  ✓ IDE can provide autocomplete
+  ✗ Requires one additional import
+  ✗ Slightly more verbose
+
+================================================================================
+VALIDATION CHECKLIST
+================================================================================
+
+After applying the fix, verify:
+
+[ ] No syntax errors in the file
+[ ] Python can import the module without errors
+[ ] Endpoint /api/v1/owner/operators accepts POST requests
+[ ] Adding an operator returns 200 (not 500)
+[ ] Operator is created in the database
+[ ] ActivityLog records the OPERATOR_ADDED action
+[ ] Multiple operators can be added to the same owner
+[ ] Listing operators shows all created operators
+[ ] Assigning operator to machine works
+
+Test command:
+  curl -X POST http://localhost:8000/api/v1/owner/operators \
+    -H "X-Telegram-User-Id: 123456789" \
+    -H "Content-Type: application/json" \
+    -d '{"operator_name": "Test Op", "contact": "79991234567"}'
+
+Expected response: 200 OK
+  {
+    "id": 1,
+    "name": "Test Op",
+    "mobile": "79991234567",
+    "company_name": null,
+    "is_active": true,
+    "created_at": "2025-11-22T...",
+    "telegram_id": null
+  }
+
+================================================================================
+IMPACT ANALYSIS
+================================================================================
+
+What gets fixed:
+  ✅ POST /api/v1/owner/operators (add operator)
+  ✅ GET  /api/v1/owner/operators (list operators)
+  ✅ POST /api/v1/owner/assignments (assign operator to machine)
+
+Side effects:
+  ✅ None - this is a pure bug fix
+  ✅ No database schema changes needed
+  ✅ No API contract changes
+  ✅ No breaking changes
+
+Affected endpoints in bot:
+  ✅ Add Operator (currently failing)
+  ✅ List Operators (currently failing due to same bug)
+  ✅ Assign Operator (currently failing due to same bug)
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Review and approve one of the two fix options
+2. Apply the fix to app/api/v1/endpoints/owners.py
+3. Run the verification test
+4. Re-run the bot test suite
+5. Deploy to production
+
+================================================================================
