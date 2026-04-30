@@ -94,7 +94,7 @@ async def receive_group_message(
         user_result = await db.execute(
             select(User).where(
                 and_(
-                    User.telegram_id == message.user_id,
+                    User.platform_user_id == message.user_id,
                     User.owner_id == group.owner_id
                 )
             )

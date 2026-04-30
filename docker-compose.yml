@@ -11,36 +11,59 @@ services:
       - "5432:5432"
     volumes:
       - logbuk_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d logbuk_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: logbuk_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - logbuk_redis_data:/data
 
   api:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: logbuk_api
     ports:
       - "8000:8000"
     volumes:
-      - ./app:/app/app  # Mount app code for hot reload
-      - ./alembic:/app/alembic  # Mount migrations
-      - ./alembic.ini:/app/alembic.ini  # Mount alembic config
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./static:/app/static
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:logbuk123@db:5432/logbuk_db
+      REDIS_URL: redis://redis:6379/0
+      
+      # LLM Configuration pointing to local host machine
+      LLM_PROVIDER: ollama
+      LLM_BASE_URL: http://host.docker.internal:11434
+      LLM_MODEL: qwen2.5:3b-instruct
+      LLM_TIMEOUT_SECONDS: "20"
+      LLM_API_KEY: ""
+      
+      RULES_PATH: app/rules/fleet_rules.yaml
       BOT_USERNAME: logbuk_bot
-      NER_SERVICE_URL: http://localhost:8001
       PYTHONPATH: /app
-    depends_on:
-      - db
-    # command: ["sh", "-c", "sleep 5 && python -m alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
-    command: ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+    
+    # This allows the container to access 'host.docker.internal'
+    # which resolves to your physical machine's IP where Ollama is running.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
-  # Optional: Adminer for database management
-  # adminer:
-  #   image: adminer
-  #   container_name: logbuk_adminer
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - db
-  #   environment:
-  #     ADMINER_DEFAULT_SERVER: db
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["sh", "-c", "env -u PYTHONPATH alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
 
 volumes:
   logbuk_postgres_data:
+  logbuk_redis_data:

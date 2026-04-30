@@ -12,8 +12,11 @@ from enum import Enum
 
 # Import your existing dependencies
 from app.db.database import get_db
-from app.db.models import User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport, ActivityLog
-from app.api.deps import get_any_telegram_user, require_owner
+from app.db.models import (
+    User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport,
+    ActivityLog, TimelineEvent,
+)
+from app.api.deps import get_any_platform_user, require_owner
 
 logger = logging.getLogger(__name__)
 
@@ -44,7 +47,7 @@ class IssueReportResponse(LogResponse):
 @logs_router.post("/fuel")
 async def log_fuel(
     log_data: dict,  # From your NER extraction
-    current_user: User = Depends(get_any_telegram_user()),
+    current_user: User = Depends(get_any_platform_user()),
     db: AsyncSession = Depends(get_db)
 ):
     """Log fuel consumption"""
@@ -96,7 +99,7 @@ async def log_fuel(
 @logs_router.post("/hours")
 async def log_hours(
     log_data: dict,  # From your NER extraction
-    current_user: User = Depends(get_any_telegram_user()),
+    current_user: User = Depends(get_any_platform_user()),
     db: AsyncSession = Depends(get_db)
 ):
     """Log machine hours"""
@@ -148,7 +151,7 @@ async def log_hours(
 @logs_router.post("/issue")
 async def report_issue(
     log_data: dict,  # From your NER extraction
-    current_user: User = Depends(get_any_telegram_user()),
+    current_user: User = Depends(get_any_platform_user()),
     db: AsyncSession = Depends(get_db)
 ):
     """Report machine issue"""
@@ -195,3 +198,102 @@ async def report_issue(
     except Exception as e:
         logger.error(f"Error reporting issue: {str(e)}")
         raise HTTPException(status_code=500, detail="Internal server error")
+
+
+# ---------------------------------------------------------------------------
+# Sandbox read endpoint (no auth)
+# ---------------------------------------------------------------------------
+
+def _initials(name: str) -> str:
+    parts = name.split()
+    return (parts[0][0] + parts[1][0]).upper() if len(parts) >= 2 else name[:2].upper()
+
+
+_INTENT_TAG_CLASS = {
+    "fuel_log":       "tag-fuel",
+    "hours_log":      "tag-hours",
+    "issue_report":   "tag-issue",
+    "parts_request":  "tag-parts",
+    "production_log": "tag-prod",
+    "shift_start":    "tag-intent",
+    "shift_end":      "tag-intent",
+}
+
+_AV_CLASSES = ["av-a", "av-b", "av-c", "av-d", "av-a"]
+
+
+@logs_router.get("/events")
+async def all_events(limit: int = 100, db: AsyncSession = Depends(get_db)):
+    """
+    All timeline events from today (most recent first optional).
+    Powers the Event Log panel in the owner screen.
+    """
+    from datetime import date
+    today_start = datetime.combine(date.today(), datetime.min.time())
+
+    rows = (await db.execute(
+        select(TimelineEvent, Machine, User)
+        .join(Machine, Machine.id == TimelineEvent.machine_id)
+        .outerjoin(User, User.id == TimelineEvent.operator_id)
+        .where(TimelineEvent.created_at >= today_start)
+        .order_by(TimelineEvent.created_at)
+        .limit(limit)
+    )).all()
+
+    # Stable av-class per operator
+    op_class_map: dict[int, str] = {}
+    class_idx = 0
+
+    result = []
+    for event, machine, op in rows:
+        if op and op.id not in op_class_map:
+            op_class_map[op.id] = _AV_CLASSES[class_idx % len(_AV_CLASSES)]
+            class_idx += 1
+
+        intent = event.event_type.lower()
+        tags = [intent, machine.reg_number]
+
+        # Add notable content fields as extra tags
+        if intent == "fuel_log" and event.content.get("fuel_volume"):
+            tags.append(f"{int(event.content['fuel_volume'])}л")
+        if intent == "hours_log" and event.content.get("hours"):
+            tags.append(f"{int(event.content['hours'])}ч")
+        if intent == "issue_report":
+            sev = event.content.get("severity") or event.content.get("component")
+            if sev:
+                tags.append(sev)
+        if event.content.get("inferred"):
+            tags.append("context-inferred")
+
+        severity = ""
+        if intent == "issue_report":
+            sev_val = (event.content.get("severity") or "").lower()
+            severity = "crit" if sev_val == "critical" else ("warn" if sev_val in ("warning", "high") else "")
+
+        extracted: dict = {"Intent": event.event_type}
+        if machine:
+            extracted["Machine"] = machine.reg_number
+        if event.content:
+            for k, v in event.content.items():
+                if k not in ("inferred",):
+                    extracted[k.title()] = str(v)
+        if event.confidence:
+            extracted["Confidence"] = f"{int(event.confidence * 100)}%"
+
+        result.append({
+            "id":               event.id,
+            "time":             event.created_at.strftime("%H:%M"),
+            "operator_name":    op.name if op else "Unknown",
+            "operator_initials": _initials(op.name) if op else "?",
+            "operator_av_class": op_class_map.get(op.id, "av-a") if op else "av-a",
+            "machine_reg":      machine.reg_number,
+            "raw_text":         event.raw_text or "",
+            "intent":           intent,
+            "severity":         severity,
+            "tags":             tags,
+            "extracted":        extracted,
+            "confidence":       round(event.confidence, 2) if event.confidence else None,
+            "created_at":       event.created_at.isoformat(),
+        })
+
+    return result

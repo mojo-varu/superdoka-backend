@@ -13,7 +13,8 @@ import sys
 sys.path.append(os.path.dirname(os.path.dirname(os.path.realpath(__file__))))
 
 # Import your models
-from app.database import Base
+from app.db.base import Base
+import app.db.models  # ensure all models are registered on Base.metadata
 
 # This is the Alembic Config object
 config = context.config

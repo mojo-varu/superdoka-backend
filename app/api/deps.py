@@ -11,16 +11,15 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def get_any_telegram_user():
+def get_any_platform_user():
     async def checker(
-        x_telegram_user_id: int = Header(..., alias="X-Telegram-User-Id"),
+        x_platform_user_id: int = Header(..., alias="X-Platform-User-Id"),
         db: AsyncSession = Depends(get_db)
     ):
-        # Fetch all active users for this Telegram ID
         result = await db.execute(
             select(User).where(
                 and_(
-                    User.telegram_id == x_telegram_user_id,
+                    User.platform_user_id == x_platform_user_id,
                     User.is_active == True
                 )
             )
@@ -30,33 +29,29 @@ def get_any_telegram_user():
         if not users:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Return the first active user found
         return users[0]
 
     return checker
 
 
-
 def require_owner():
     async def checker(
-        x_telegram_user_id: int = Header(..., alias="X-Telegram-User-Id"),
+        x_platform_user_id: int = Header(..., alias="X-Platform-User-Id"),
         db: AsyncSession = Depends(get_db)
     ):
-        # Fetch all active users for this Telegram ID
         result = await db.execute(
             select(User).where(
                 and_(
-                    User.telegram_id == x_telegram_user_id,
+                    User.platform_user_id == x_platform_user_id,
                     User.is_active == True
                 )
-            ).order_by(User.user_type.desc())  # OWNER > AGENT > BUYER
+            ).order_by(User.user_type.desc())
         )
         users = result.scalars().all()
 
         if not users:
             raise HTTPException(status_code=404, detail="User not found")
 
-        # Return the OWNER user if it exists
         for user in users:
             if user.user_type == UserType.OWNER.value:
                 return user

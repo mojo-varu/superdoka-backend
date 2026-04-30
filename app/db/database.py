@@ -1,25 +1,41 @@
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
-from app.config import settings
+import os
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
+from sqlalchemy.orm import DeclarativeBase
 
-# Async engine with connection pooling
-engine = create_async_engine(
-    settings.DATABASE_URL,
-    pool_size=20,
-    max_overflow=10,
-    pool_pre_ping=True,
-    echo=True  # Remove in production
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite+aiosqlite:///./vfm_dev.db",   # local dev fallback (no Docker needed)
 )
 
-# Session factory
-AsyncSessionLocal = sessionmaker(
-    bind=engine,
+# asyncpg (Postgres) and aiosqlite (SQLite) are both supported.
+# The connect_args below are SQLite-specific — asyncpg ignores unknown kwargs,
+# so this is safe to leave for both drivers.
+connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+
+engine = create_async_engine(
+    DATABASE_URL,
+    connect_args=connect_args,
+    echo=False,
+)
+
+AsyncSessionLocal = async_sessionmaker(
+    engine,
     class_=AsyncSession,
     expire_on_commit=False,
-    autoflush=False
 )
 
-# Dependency
-async def get_db() -> AsyncSession:
+
+async def get_async_session():
     async with AsyncSessionLocal() as session:
         yield session
+
+
+get_db = get_async_session
+
+
+async def init_db():
+    """Create all tables. Used in tests and SQLite dev mode only.
+    In production alembic upgrade head handles schema management."""
+    from app.db.base import Base
+    async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.create_all)

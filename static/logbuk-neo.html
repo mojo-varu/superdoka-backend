@@ -1,0 +1,1228 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<title>Logbuk · Fleet Intelligence</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+/* Neobrutalism tokens — industrial palette */
+:root {
+  --nb-bg: #e8e4dc;
+  --nb-bg-alt: #f1ede4;
+  --nb-paper: #fafaf7;
+  --nb-ink: #14171a;
+  --nb-ink-soft: #2a2e33;
+  --nb-muted: #6a6e73;
+
+  --nb-border: 2px solid #14171a;
+  --nb-border-thick: 3px solid #14171a;
+
+  --nb-radius: 6px;
+  --nb-radius-sm: 4px;
+
+  --nb-shadow-sm: 3px 3px 0 0 #14171a;
+  --nb-shadow: 5px 5px 0 0 #14171a;
+  --nb-shadow-lg: 7px 7px 0 0 #14171a;
+
+  --nb-lime: #d4c43a;
+  --nb-yellow: #e8a93a;
+  --nb-sky: #5b8aa8;
+  --nb-coral: #b84a3a;
+  --nb-violet: #6b6f8c;
+  --nb-mint: #6b8e6e;
+  --nb-pink: #b08770;
+  --nb-orange: #c97a3a;
+
+  --nb-good: #5a7a3a;
+  --nb-warn: #c97a1a;
+  --nb-bad: #a3331f;
+
+  --nb-font: "Space Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --nb-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; }
+body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-bg); -webkit-font-smoothing: antialiased; }
+
+.nb-card { background: var(--nb-paper); border: var(--nb-border); border-radius: var(--nb-radius); box-shadow: var(--nb-shadow); }
+.nb-flat { background: var(--nb-paper); border: var(--nb-border); border-radius: var(--nb-radius); }
+
+.nb-btn {
+  font-family: var(--nb-font); font-weight: 600; font-size: 12px; letter-spacing: 0.01em;
+  background: var(--nb-paper); color: var(--nb-ink); border: var(--nb-border);
+  border-radius: var(--nb-radius-sm); padding: 7px 12px; cursor: pointer;
+  box-shadow: var(--nb-shadow-sm); transition: transform .06s ease, box-shadow .06s ease; white-space: nowrap;
+}
+.nb-btn:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 #0a0a0a; }
+.nb-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 #0a0a0a; }
+.nb-btn.lime { background: var(--nb-lime); }
+.nb-btn.sky { background: var(--nb-sky); color: #fafaf7; }
+.nb-btn.coral { background: var(--nb-coral); color: #fafaf7; }
+.nb-btn.yellow { background: var(--nb-yellow); }
+.nb-btn.violet { background: var(--nb-violet); color: #fafaf7; }
+.nb-btn.mint { background: var(--nb-mint); color: #fafaf7; }
+.nb-btn.ink { background: var(--nb-ink); color: #fff; }
+
+.nb-tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-family: var(--nb-mono); font-size: 10px; font-weight: 600; letter-spacing: 0.02em;
+  padding: 2px 7px; border: 1.5px solid var(--nb-ink); border-radius: 999px;
+  background: var(--nb-paper); text-transform: lowercase;
+}
+.nb-tag.lime { background: var(--nb-lime); }
+.nb-tag.sky { background: var(--nb-sky); color: #fafaf7; }
+.nb-tag.coral { background: var(--nb-coral); color: #fafaf7; }
+.nb-tag.yellow { background: var(--nb-yellow); }
+.nb-tag.violet { background: var(--nb-violet); color: #fafaf7; }
+.nb-tag.mint { background: var(--nb-mint); color: #fafaf7; }
+.nb-tag.pink { background: var(--nb-pink); }
+.nb-tag.ink { background: var(--nb-ink); color: #fff; border-color: var(--nb-ink); }
+
+.nb-input {
+  font-family: var(--nb-font); font-size: 13px; padding: 9px 12px;
+  background: var(--nb-paper); border: var(--nb-border); border-radius: var(--nb-radius-sm);
+  outline: none; color: var(--nb-ink); box-shadow: inset 2px 2px 0 0 rgba(0,0,0,0.04);
+}
+.nb-input:focus { box-shadow: var(--nb-shadow-sm); }
+
+.nb-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.nb-scroll::-webkit-scrollbar-track { background: transparent; }
+.nb-scroll::-webkit-scrollbar-thumb { background: var(--nb-ink); border: 2px solid var(--nb-bg); border-radius: 10px; }
+
+.nb-label { font-family: var(--nb-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--nb-ink-soft); }
+
+#app-root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Header view-switch buttons */
+.nb-view-btn {
+  font-family: var(--nb-font); font-weight: 700; font-size: 12px; letter-spacing: 0.01em;
+  padding: 7px 14px; border: 2px solid rgba(255,255,255,0.6); border-radius: var(--nb-radius-sm);
+  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
+  transition: transform .06s ease, box-shadow .06s ease;
+  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
+  box-shadow: 3px 3px 0 0 rgba(255,255,255,0.2);
+}
+.nb-view-btn.active { background: var(--nb-yellow); color: var(--nb-ink); border-color: #fff; box-shadow: 3px 3px 0 0 rgba(255,255,255,0.5); }
+.nb-view-btn:not(.active):hover { background: rgba(255,255,255,0.15); color: #fff; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 rgba(255,255,255,0.3); }
+.nb-view-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 rgba(255,255,255,0.2); }
+
+/* Language toggle */
+.nb-lang-btn {
+  font-family: var(--nb-mono); font-weight: 700; font-size: 11px; letter-spacing: 0.08em;
+  padding: 5px 10px; border: 2px solid rgba(255,255,255,0.5); border-radius: var(--nb-radius-sm);
+  cursor: pointer; background: transparent; color: rgba(255,255,255,0.55);
+  transition: all .1s; white-space: nowrap;
+}
+.nb-lang-btn.active { background: var(--nb-paper); color: var(--nb-ink); border-color: #fff; box-shadow: 2px 2px 0 0 rgba(255,255,255,0.4); }
+.nb-lang-btn:not(.active):hover { background: rgba(255,255,255,0.12); color: #fff; }
+</style>
+</head>
+<body>
+  <div id="app-root"></div>
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+
+  <!-- Translations + LangContext (shared across all blocks) -->
+  <script type="text/babel">
+window.__T = {
+  ru: {
+    vfm_label:           "виртуальный менеджер флота",
+    open_issue_badge:    "1 открытая проблема",
+    shifts_active_badge: "3 смены активны",
+    lang_toggle:         "EN",
+
+    view_fleet:          "Аналитика флота",
+    view_operator:       "Консоль оператора",
+    view_owner_sub:      "владелец",
+    view_sandbox_sub:    "песочница",
+
+    tab_summary:         "Сводка",
+    tab_logs:            "Журнал машин",
+    tab_fleet:           "Флот",
+    btn_today:           "Сегодня ▾",
+    btn_export:          "Экспорт",
+
+    kpi_fleet_uptime:    "Готовность флота",
+    kpi_hours:           "Часы за сегодня",
+    kpi_fuel:            "Топливо за день",
+    kpi_open_issues:     "Открытые проблемы",
+    kpi_production:      "Выработка сегодня",
+    kpi_ops_sub:         "по 3 операторам",
+    kpi_fuel_sub:        "↑ 8% к средн. за 7 дней",
+    kpi_issue_sub:       "MEDIUM · BLZ-042",
+    kpi_prod_sub:        "только CAT-101",
+
+    vfm_badge:           "VFM АНАЛИТИКА",
+    insights_count:      n => `${n} вывода за 3 дня журналов`,
+    reported_by:         "сообщил",
+    btn_notify:          "Уведомить механика",
+    btn_resolve:         "Закрыть",
+    todays_activity:     "Активность сегодня",
+
+    filter_label:        "Фильтр: намерение",
+    msgs_count:          (v, total) => `${v} из ${total} сообщений`,
+    extracted_header:    "Извлечённые данные",
+
+    fleet_header:        "Флот · 5 машин",
+    no_operator:         "нет оператора",
+    todays_log:          reg => `Журнал сегодня · ${reg}`,
+    no_activity_today:   "Активности нет",
+    action_needed:       "требует действий",
+    status_clear:        "норма",
+    fuel_anomaly:        r => `${r} л/ч · аномалия`,
+    fuel_normal:         r => `${r} л/ч · норма`,
+    on_track:            "в норме",
+    no_activity:         "нет активности",
+    logged:              "записано",
+    not_logged:          "не записано",
+    operator_of:         op => `ОПЕРАТОР: ${op}`,
+    no_active_op:        "НЕТ АКТИВНОГО ОПЕРАТОРА",
+
+    ops_header:          "Операторы",
+    ops_count:           "4 в команде",
+    sandbox_mode:        "РЕЖИМ ПЕСОЧНИЦЫ",
+    sandbox_hint:        "Вводите текст от имени оператора. VFM определяет намерение и поля данных.",
+    quick_log_label:     "Быстрый ввод",
+    ql_fuel:             "+ Топливо",
+    ql_hours:            "+ Часы",
+    ql_issue:            "+ Проблема",
+    ql_prod:             "+ Выработка",
+    ql_parts:            "+ Запчасти",
+    qt_fuel:             "Залил 50 литров",
+    qt_hours:            "Наработка 4 часа",
+    qt_issue:            "Гидравлика стучит",
+    qt_prod:             "Вывезли 15 кубов",
+    qt_parts:            "Нужен фильтр",
+
+    btn_end_shift:       "Завершить смену",
+    btn_start_shift:     "Начать смену",
+    machines_label:      "Машины",
+    on_shift:            "на смене",
+    off_shift:           "не на смене",
+    btn_send:            "Отправить →",
+    input_placeholder:   name => `Введите от имени ${name}...`,
+    no_msgs_title:       "Нет сообщений",
+    no_msgs_hint:        "Начните смену или отправьте быстрый ввод →",
+    assistant_label:     "ассистент",
+
+    shift_start_msg:     reg => `Начинаю смену на ${reg}`,
+    shift_end_msg:       "Смена закончена",
+
+    reply_shift_start:   "Смена открыта. Удачной смены!",
+    reply_shift_end:     "Смена закрыта. Итоги рассчитаны.",
+    reply_fuel:          v => `Записано: ${v}л топлива`,
+    reply_hours:         h => `Записано: ${h}ч наработки`,
+    reply_critical:      "КРИТИЧНО зафиксировано. Машина остановлена. Владелец уведомлён.",
+    reply_issue:         "Зафиксировано. Приоритет MEDIUM. Уточните детали.",
+    reply_production:    "Выработка записана",
+    reply_parts:         "Запрос на запчасть зафиксирован. Передан владельцу.",
+    reply_default:       "Принято",
+    reply_switch:        reg => `Переключено на ${reg}`,
+  },
+  en: {
+    vfm_label:           "virtual fleet manager",
+    open_issue_badge:    "1 open issue",
+    shifts_active_badge: "3 shifts active",
+    lang_toggle:         "RU",
+
+    view_fleet:          "Fleet Intelligence",
+    view_operator:       "Operator Console",
+    view_owner_sub:      "owner view",
+    view_sandbox_sub:    "sandbox",
+
+    tab_summary:         "Summary",
+    tab_logs:            "Machine Logs",
+    tab_fleet:           "Fleet",
+    btn_today:           "Today ▾",
+    btn_export:          "Export",
+
+    kpi_fleet_uptime:    "Fleet uptime",
+    kpi_hours:           "Hours logged today",
+    kpi_fuel:            "Fuel today",
+    kpi_open_issues:     "Open issues",
+    kpi_production:      "Production today",
+    kpi_ops_sub:         "across 3 operators",
+    kpi_fuel_sub:        "↑ 8% vs 7-day avg",
+    kpi_issue_sub:       "MEDIUM · BLZ-042",
+    kpi_prod_sub:        "CAT-101 only",
+
+    vfm_badge:           "VFM INTELLIGENCE",
+    insights_count:      n => `${n} insights from 3 days of natural-language logs`,
+    reported_by:         "reported by",
+    btn_notify:          "Notify mechanic",
+    btn_resolve:         "Mark resolved",
+    todays_activity:     "Today's activity",
+
+    filter_label:        "Filter intent",
+    msgs_count:          (v, total) => `${v} of ${total} messages`,
+    extracted_header:    "Extracted data points",
+
+    fleet_header:        "Fleet · 5 machines",
+    no_operator:         "no operator",
+    todays_log:          reg => `Today's log · ${reg}`,
+    no_activity_today:   "No activity today",
+    action_needed:       "action needed",
+    status_clear:        "clear",
+    fuel_anomaly:        r => `${r} L/h · anomaly`,
+    fuel_normal:         r => `${r} L/h · normal`,
+    on_track:            "on track",
+    no_activity:         "no activity",
+    logged:              "logged",
+    not_logged:          "not logged",
+    operator_of:         op => `OPERATOR: ${op}`,
+    no_active_op:        "NO ACTIVE OPERATOR",
+
+    ops_header:          "Operators",
+    ops_count:           "4 on roster",
+    sandbox_mode:        "SANDBOX MODE",
+    sandbox_hint:        "Type as the selected operator. VFM extracts intent + fields.",
+    quick_log_label:     "Quick log",
+    ql_fuel:             "+ Fuel",
+    ql_hours:            "+ Hours",
+    ql_issue:            "+ Issue",
+    ql_prod:             "+ Production",
+    ql_parts:            "+ Parts",
+    qt_fuel:             "Fuelled 50 litres",
+    qt_hours:            "Engine hours 4",
+    qt_issue:            "Hydraulics knocking",
+    qt_prod:             "Moved 15 cubic metres",
+    qt_parts:            "Need a filter",
+
+    btn_end_shift:       "End shift",
+    btn_start_shift:     "Start shift",
+    machines_label:      "Machines",
+    on_shift:            "on shift",
+    off_shift:           "off shift",
+    btn_send:            "Send →",
+    input_placeholder:   name => `Type as ${name}...`,
+    no_msgs_title:       "No messages",
+    no_msgs_hint:        "Start a shift or send a quick log →",
+    assistant_label:     "assistant",
+
+    shift_start_msg:     reg => `Starting shift on ${reg}`,
+    shift_end_msg:       "Shift ended",
+
+    reply_shift_start:   "Shift opened. Good luck!",
+    reply_shift_end:     "Shift closed. Totals calculated.",
+    reply_fuel:          v => `Logged: ${v}L fuel`,
+    reply_hours:         h => `Logged: ${h}h engine hours`,
+    reply_critical:      "CRITICAL logged. Machine stopped. Owner notified.",
+    reply_issue:         "Logged. Priority MEDIUM. Please describe further.",
+    reply_production:    "Production logged",
+    reply_parts:         "Parts request logged. Forwarded to owner.",
+    reply_default:       "Received",
+    reply_switch:        reg => `Switched to ${reg}`,
+  },
+};
+
+window.__LangContext = React.createContext({ lang: 'ru', setLang: () => {} });
+window.__useLang = () => React.useContext(window.__LangContext);
+  </script>
+
+  <!-- Fleet Intelligence component -->
+  <script type="text/babel">
+
+const FLEET_LOGS = [
+  { time:"07:02", op:"ИС", opColor:"var(--nb-bg-alt)", opName:"Иван Сидоров", machine:"CAT-101",
+    raw:"Начинаю смену на CAT-101", rawEn:"Starting shift on CAT-101",
+    intent:"shift_start", tags:[["shift_start","lime"]], conf:"97%", severity:null,
+    ext:{ Intent:"shift_start", Machine:"CAT-101", Conf:"97%" } },
+  { time:"07:10", op:"ПК", opColor:"var(--nb-bg-alt)", opName:"Пётр Кузнецов", machine:"BLZ-042",
+    raw:"Начинаю смену на BLZ-042", rawEn:"Starting shift on BLZ-042",
+    intent:"shift_start", tags:[["shift_start","lime"]], conf:"97%", severity:null,
+    ext:{ Intent:"shift_start", Machine:"BLZ-042", Conf:"97%" } },
+  { time:"07:30", op:"МФ", opColor:"var(--nb-bg-alt)", opName:"Михаил Фёдоров", machine:"KOM-007",
+    raw:"начинаю KOM-007", rawEn:"starting KOM-007",
+    intent:"shift_start", tags:[["shift_start","lime"]], conf:"95%", severity:null,
+    ext:{ Intent:"shift_start", Machine:"KOM-007", Conf:"95%" } },
+  { time:"08:00", op:"ПК", opColor:"var(--nb-bg-alt)", opName:"Пётр Кузнецов", machine:"BLZ-042",
+    raw:"Залил 80л солярки", rawEn:"Fuelled 80L diesel",
+    intent:"fuel_log", tags:[["fuel_log","sky"],["80л","ink"]], conf:"93%", severity:null,
+    ext:{ Intent:"fuel_log", Volume:"80л", Conf:"93%" } },
+  { time:"08:15", op:"ИС", opColor:"var(--nb-bg-alt)", opName:"Иван Сидоров", machine:"CAT-101",
+    raw:"Залил 150 литров", rawEn:"Fuelled 150 litres",
+    intent:"fuel_log", tags:[["fuel_log","sky"],["150л","ink"]], conf:"96%", severity:null,
+    ext:{ Intent:"fuel_log", Volume:"150л", Conf:"96%" } },
+  { time:"09:30", op:"ИС", opColor:"var(--nb-bg-alt)", opName:"Иван Сидоров", machine:"CAT-101",
+    raw:"Наработка 6 часов", rawEn:"Engine hours 6",
+    intent:"hours_log", tags:[["hours_log","mint"],["6ч","ink"]], conf:"94%", severity:null,
+    ext:{ Intent:"hours_log", Hours:"6ч", Conf:"94%" } },
+  { time:"09:47", op:"ПК", opColor:"var(--nb-bg-alt)", opName:"Пётр Кузнецов", machine:"BLZ-042",
+    raw:"Гидравлика не поднимает кузов", rawEn:"Hydraulics won't lift the dump body",
+    intent:"issue_report", tags:[["issue_report","yellow"],["hydraulics","ink"],["warning","yellow"]], conf:"88%", severity:"warn",
+    ext:{ Intent:"issue_report", Component:"hydraulics", Severity:"warning", Conf:"88%" } },
+  { time:"09:49", op:"ПК", opColor:"var(--nb-bg-alt)", opName:"Пётр Кузнецов", machine:"BLZ-042",
+    raw:"Стоим, началось после загрузки", rawEn:"Standing by, started after loading",
+    intent:"status_update", tags:[["status_update","violet"]], conf:"91%", severity:"warn",
+    ext:{ Intent:"status_update", Context:"after loading", Conf:"91%" } },
+  { time:"10:05", op:"ИС", opColor:"var(--nb-bg-alt)", opName:"Иван Сидоров", machine:"CAT-101",
+    raw:"Вывезли 18 кубов грунта", rawEn:"Moved 18 cubic metres of soil",
+    intent:"production_log", tags:[["production_log","violet"],["18 кубов","ink"]], conf:"92%", severity:null,
+    ext:{ Intent:"production_log", Qty:"18 кубов", Conf:"92%" } },
+  { time:"10:15", op:"МФ", opColor:"var(--nb-bg-alt)", opName:"Михаил Фёдоров", machine:"KOM-007",
+    raw:"Нужен фильтр гидравлический", rawEn:"Need a hydraulic filter",
+    intent:"parts_request", tags:[["parts_request","pink"],["hydraulic filter","ink"]], conf:"92%", severity:null,
+    ext:{ Intent:"parts_request", Part:"hydraulic filter", Conf:"92%" } },
+  { time:"10:30", op:"ИС", opColor:"var(--nb-bg-alt)", opName:"Иван Сидоров", machine:"CAT-101",
+    raw:"ещё 50 залил", rawEn:"fuelled another 50",
+    intent:"fuel_log", tags:[["fuel_log","sky"],["50л","ink"],["context-inferred","yellow"]], conf:"87%", severity:null,
+    ext:{ Intent:"fuel_log", Volume:"50л", Context:"inferred", Conf:"87%" } },
+  { time:"11:10", op:"МФ", opColor:"var(--nb-bg-alt)", opName:"Михаил Фёдоров", machine:"KOM-007",
+    raw:"Наработка 3 часа", rawEn:"Engine hours 3",
+    intent:"hours_log", tags:[["hours_log","mint"],["3ч","ink"]], conf:"94%", severity:null,
+    ext:{ Intent:"hours_log", Hours:"3ч", Conf:"94%" } },
+];
+
+const FLEET = {
+  "CAT-101": { type:"Excavator", typeRu:"Экскаватор", model:"Caterpillar 320D · 2019", op:"Иван Сидоров", status:"working", fuel:200, hours:6, prod:18, prodUnit:"m³", issues:0 },
+  "BLZ-042": { type:"Dump truck", typeRu:"Самосвал", model:"БелАЗ 75131 · 2020", op:"Пётр Кузнецов", status:"warning", fuel:80, hours:3, prod:0, prodUnit:"—", issues:1 },
+  "KOM-007": { type:"Bulldozer", typeRu:"Бульдозер", model:"Komatsu D155AX · 2018", op:"Михаил Фёдоров", status:"working", fuel:0, hours:3, prod:0, prodUnit:"—", issues:0 },
+  "GRD-003": { type:"Grader", typeRu:"Грейдер", model:"ВГМТ 14ГМ · 2021", op:null, status:"idle", fuel:0, hours:0, prod:0, prodUnit:"—", issues:0 },
+  "KRN-005": { type:"Crane", typeRu:"Кран", model:"Liebherr LTM 1100 · 2017", op:null, status:"idle", fuel:0, hours:0, prod:0, prodUnit:"—", issues:0 },
+};
+
+const OPEN_ISSUES = [
+  { machine:"BLZ-042",
+    titleRu:"Гидравлика не поднимает кузов", title:"Hydraulics won't lift the dump body",
+    time:"09:47", op:"Пётр Кузнецов", severity:"MEDIUM",
+    orig:"\"Гидравлика не поднимает кузов\" → component: hydraulics",
+    actionRu:"Уведомить механика", action:"Notify mechanic" },
+];
+
+const INSIGHTS = [
+  { kind:"anomaly", kindRu:"аномалия",
+    title:"CAT-101 fuel rate 33 L/h — 18% above baseline",
+    titleRu:"Расход топлива CAT-101 — 33 л/ч, +18% к базовому",
+    body:"Last 3 days trending up. Possible idling, leak, or operator habit.",
+    bodyRu:"Растёт 3 дня подряд. Возможен холостой ход, утечка или привычка оператора.",
+    color:"var(--nb-yellow)", icon:"▲" },
+  { kind:"pattern", kindRu:"паттерн",
+    title:"Hydraulics failures cluster on БелАЗ fleet",
+    titleRu:"Отказы гидравлики концентрируются в парке БелАЗ",
+    body:"3rd hydraulics report in 14 days (BLZ-042 today, BLZ-018 +5d, BLZ-042 +12d).",
+    bodyRu:"3-й отчёт за 14 дней (BLZ-042 сегодня, BLZ-018 +5д, BLZ-042 +12д).",
+    color:"var(--nb-coral)", icon:"◆" },
+  { kind:"opportunity", kindRu:"возможность",
+    title:"GRD-003 idle for 4 days",
+    titleRu:"GRD-003 простаивает 4 дня",
+    body:"No shift opened. Reassign or schedule maintenance window.",
+    bodyRu:"Смена не открывалась. Перераспределить или запланировать ТО.",
+    color:"var(--nb-sky)", icon:"◉" },
+];
+
+function useLangT() {
+  const { lang } = window.__useLang();
+  const T = window.__T[lang];
+  const t = (key, ...args) => { const v = T[key]; return typeof v === 'function' ? v(...args) : (v ?? key); };
+  return { t, lang };
+}
+
+function StatusPill({ status }) {
+  const map = {
+    working: { bg:"#4e7d3a", label:"WORKING", light:true },
+    warning: { bg:"var(--nb-yellow)", label:"WARNING" },
+    idle:    { bg:"#e5e1d4", label:"IDLE" },
+    down:    { bg:"var(--nb-coral)", label:"DOWN", light:true },
+  };
+  const s = map[status] || map.idle;
+  return (
+    <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800, padding:"3px 9px",
+      background:s.bg, color:s.light ? "#fff" : "var(--nb-ink)",
+      border:"2px solid var(--nb-ink)", borderRadius:4, letterSpacing:".06em" }}>{s.label}</span>
+  );
+}
+
+function Avatar2({ initials, color, size=28 }) {
+  return (
+    <div style={{ width:size, height:size, borderRadius:"50%", background:color,
+      border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
+      fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:size*0.34, flexShrink:0, color:"var(--nb-ink)" }}>{initials}</div>
+  );
+}
+
+function MetricBlock({ label, value, unit, sub, subTone, accent }) {
+  const subColor = { good:"#0a7d2c", bad:"#a8201a", muted:"var(--nb-muted)" }[subTone || "muted"];
+  return (
+    <div style={{ padding:"16px 18px", background:accent||"var(--nb-paper)", borderRight:"2px solid var(--nb-ink)", flex:1, minWidth:0 }}>
+      <div className="nb-label">{label}</div>
+      <div style={{ display:"flex", alignItems:"baseline", gap:4, marginTop:6 }}>
+        <span style={{ fontSize:30, fontWeight:800, lineHeight:1, letterSpacing:"-.02em" }}>{value}</span>
+        {unit && <span style={{ fontFamily:"var(--nb-mono)", fontSize:13, fontWeight:600, color:"var(--nb-ink-soft)" }}>{unit}</span>}
+      </div>
+      {sub && <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, fontWeight:600, color:subColor, marginTop:6, textTransform:"uppercase", letterSpacing:".05em" }}>{sub}</div>}
+    </div>
+  );
+}
+
+function SummaryTab() {
+  const { t, lang } = useLangT();
+  const total = Object.keys(FLEET).length;
+  const working = Object.values(FLEET).filter(m => m.status === "working").length;
+  const warn = Object.values(FLEET).filter(m => m.status === "warning").length;
+  const idle = Object.values(FLEET).filter(m => m.status === "idle").length;
+  const fuelTotal = Object.values(FLEET).reduce((a, m) => a + m.fuel, 0);
+  const hoursTotal = Object.values(FLEET).reduce((a, m) => a + m.hours, 0);
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
+        <MetricBlock label={t('kpi_fleet_uptime')} value={`${working}/${total}`} sub={`${warn} warning · ${idle} idle`} subTone="muted" />
+        <MetricBlock label={t('kpi_hours')} value={hoursTotal} unit="h" sub={t('kpi_ops_sub')} subTone="muted" />
+        <MetricBlock label={t('kpi_fuel')} value={fuelTotal} unit="L" sub={t('kpi_fuel_sub')} subTone="bad" />
+        <MetricBlock label={t('kpi_open_issues')} value={OPEN_ISSUES.length} sub={t('kpi_issue_sub')} subTone="bad" accent="var(--nb-yellow)" />
+        <div style={{ padding:"16px 18px", background:"var(--nb-paper)", flex:1 }}>
+          <div className="nb-label">{t('kpi_production')}</div>
+          <div style={{ display:"flex", alignItems:"baseline", gap:4, marginTop:6 }}>
+            <span style={{ fontSize:30, fontWeight:800, lineHeight:1 }}>18</span>
+            <span style={{ fontFamily:"var(--nb-mono)", fontSize:13, color:"var(--nb-ink-soft)" }}>m³</span>
+          </div>
+          <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, color:"var(--nb-muted)", marginTop:6, textTransform:"uppercase", letterSpacing:".05em" }}>{t('kpi_prod_sub')}</div>
+        </div>
+      </div>
+
+      <div className="nb-scroll" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:18, alignContent:"start" }}>
+        <div style={{ gridColumn:"1 / -1" }}>
+          <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
+            <div style={{ background:"var(--nb-ink)", color:"#fff", fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, padding:"4px 10px", borderRadius:4, letterSpacing:".08em" }}>{t('vfm_badge')}</div>
+            <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)" }}>{t('insights_count', INSIGHTS.length)}</span>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:14 }}>
+            {INSIGHTS.map((ins, i) => (
+              <div key={i} className="nb-card" style={{ padding:14, background:ins.color }}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                  <div style={{ width:26, height:26, background:"var(--nb-ink)", color:"#fff", border:"2px solid var(--nb-ink)", borderRadius:4, display:"flex", alignItems:"center", justifyContent:"center", fontSize:14, fontWeight:800 }}>{ins.icon}</div>
+                  <span className="nb-tag ink">{lang === 'ru' ? ins.kindRu : ins.kind}</span>
+                </div>
+                <div style={{ fontSize:14, fontWeight:700, lineHeight:1.25, marginBottom:6 }}>{lang === 'ru' ? ins.titleRu : ins.title}</div>
+                <div style={{ fontSize:12, lineHeight:1.45, color:"var(--nb-ink-soft)" }}>{lang === 'ru' ? ins.bodyRu : ins.body}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="nb-label" style={{ marginBottom:8 }}>{t('kpi_open_issues')}</div>
+          {OPEN_ISSUES.map((iss, i) => (
+            <div key={i} className="nb-card" style={{ padding:14, marginBottom:10, background:"var(--nb-yellow)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                <span className="nb-tag ink">{iss.severity}</span>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{iss.machine}</span>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, color:"var(--nb-ink-soft)", marginLeft:"auto", whiteSpace:"nowrap" }}>{iss.time}</span>
+              </div>
+              <div style={{ fontSize:14, fontWeight:700, lineHeight:1.3 }}>{lang === 'ru' ? iss.titleRu : iss.title}</div>
+              <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-ink-soft)", marginTop:4 }}>{t('reported_by')} {iss.op}</div>
+              <div style={{ fontSize:12, fontStyle:"italic", color:"var(--nb-ink-soft)", marginTop:6, paddingTop:6, borderTop:"1.5px dashed rgba(0,0,0,0.3)" }}>{iss.orig}</div>
+              <div style={{ display:"flex", gap:8, marginTop:10 }}>
+                <button className="nb-btn ink">{lang === 'ru' ? iss.actionRu : iss.action}</button>
+                <button className="nb-btn">{t('btn_resolve')}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div>
+          <div className="nb-label" style={{ marginBottom:8 }}>{t('todays_activity')}</div>
+          <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+            {FLEET_LOGS.slice(0, 7).map((l, i) => (
+              <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"9px 12px", borderBottom:i<6?"1.5px solid var(--nb-ink)":"none", background:l.severity==="warn"?"var(--nb-yellow)":"var(--nb-paper)" }}>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, fontWeight:700, minWidth:36 }}>{l.time}</span>
+                <Avatar2 initials={l.op} color={l.opColor} size={22} />
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontSize:12.5, lineHeight:1.3 }}>{lang === 'ru' ? l.raw : (l.rawEn || l.raw)}</div>
+                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2 }}>{l.opName} · {l.machine}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function MachineLogsTab() {
+  const { t, lang } = useLangT();
+  const [expanded, setExpanded] = React.useState(new Set([6]));
+  const [filter, setFilter] = React.useState("all");
+  const filters = ["all", "fuel_log", "hours_log", "issue_report", "production_log", "parts_request"];
+  const visible = filter === "all" ? FLEET_LOGS : FLEET_LOGS.filter(l => l.intent === filter);
+  const toggle = i => { const next = new Set(expanded); next.has(i) ? next.delete(i) : next.add(i); setExpanded(next); };
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", padding:"12px 18px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)" }}>
+        <span className="nb-label">{t('filter_label')}</span>
+        {filters.map(f => (
+          <button key={f} className="nb-btn" style={{ background:filter===f?"var(--nb-yellow)":"var(--nb-paper)", boxShadow:filter===f?"var(--nb-shadow-sm)":"none" }} onClick={() => setFilter(f)}>{f}</button>
+        ))}
+        <span style={{ marginLeft:"auto", fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)" }}>{t('msgs_count', visible.length, FLEET_LOGS.length)}</span>
+      </div>
+      <div className="nb-scroll" style={{ flex:1, overflowY:"auto", padding:18 }}>
+        <div style={{ display:"flex", flexDirection:"column", gap:10 }}>
+          {visible.map((l, i) => {
+            const isExp = expanded.has(i);
+            return (
+              <div key={i} onClick={() => toggle(i)} className="nb-card" style={{ padding:0, background:l.severity==="warn"?"var(--nb-yellow)":"var(--nb-paper)", cursor:"pointer" }}>
+                <div style={{ display:"flex", gap:12, alignItems:"flex-start", padding:"12px 14px" }}>
+                  <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, minWidth:42, paddingTop:2 }}>{l.time}</span>
+                  <Avatar2 initials={l.op} color={l.opColor} size={30} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                      <span style={{ fontWeight:700, fontSize:12.5, whiteSpace:"nowrap" }}>{l.opName}</span>
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)" }}>·</span>
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, whiteSpace:"nowrap" }}>{l.machine}</span>
+                    </div>
+                    <div style={{ fontSize:14, lineHeight:1.4, marginBottom:6 }}>{lang === 'ru' ? l.raw : (l.rawEn || l.raw)}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:5 }}>
+                      {l.tags.map((tag, j) => <span key={j} className={`nb-tag ${tag[1]}`}>{tag[0]}</span>)}
+                    </div>
+                  </div>
+                  <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, background:"var(--nb-ink)", color:"#fff", padding:"3px 8px", borderRadius:4, flexShrink:0 }}>{l.conf}</span>
+                </div>
+                {isExp && (
+                  <div style={{ borderTop:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)", padding:"10px 14px" }}>
+                    <div className="nb-label" style={{ marginBottom:6 }}>{t('extracted_header')}</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(140px,1fr))", gap:8 }}>
+                      {Object.entries(l.ext).map(([k, v]) => (
+                        <div key={k} style={{ background:"var(--nb-paper)", border:"2px solid var(--nb-ink)", borderRadius:4, padding:"6px 10px" }}>
+                          <div style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", textTransform:"uppercase", letterSpacing:".08em" }}>{k}</div>
+                          <div style={{ fontSize:13, fontWeight:700, marginTop:2 }}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FleetTab() {
+  const { t, lang } = useLangT();
+  const [selected, setSelected] = React.useState("CAT-101");
+  const m = FLEET[selected];
+  const fuelRate = m.hours > 0 ? Math.round(m.fuel / m.hours) : 0;
+  const machineLogs = FLEET_LOGS.filter(l => l.machine === selected);
+
+  return (
+    <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", height:"100%", overflow:"hidden" }}>
+      <div style={{ background:"var(--nb-bg-alt)", borderRight:"2px solid var(--nb-ink)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        <div style={{ padding:"12px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>
+          <div className="nb-label">{t('fleet_header')}</div>
+        </div>
+        <div className="nb-scroll" style={{ overflowY:"auto", flex:1 }}>
+          {Object.entries(FLEET).map(([reg, mm]) => (
+            <div key={reg} onClick={() => setSelected(reg)} style={{ padding:"12px 14px", cursor:"pointer", background:selected===reg?"var(--nb-yellow)":"transparent", borderBottom:"2px solid var(--nb-ink)", display:"flex", flexDirection:"column", gap:4 }}>
+              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:13, fontWeight:800, letterSpacing:".02em", whiteSpace:"nowrap" }}>{reg}</span>
+                <span style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={mm.status} /></span>
+              </div>
+              <div style={{ fontSize:12, color:"var(--nb-ink-soft)" }}>{lang === 'ru' ? mm.typeRu : mm.type}</div>
+              <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, color:"var(--nb-muted)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>{mm.op || t('no_operator')}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="nb-scroll" style={{ overflowY:"auto" }}>
+        <div style={{ padding:"20px 22px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-bg-alt)", borderLeft:"8px solid var(--nb-yellow)", display:"flex", alignItems:"flex-start", gap:16 }}>
+          <div style={{ minWidth:0, flex:1 }}>
+            <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".1em", marginBottom:4 }}>{lang === 'ru' ? m.typeRu : m.type}</div>
+            <div style={{ fontSize:36, fontWeight:800, lineHeight:1, letterSpacing:"-.02em", whiteSpace:"nowrap" }}>{selected}</div>
+            <div style={{ fontFamily:"var(--nb-mono)", fontSize:12, marginTop:6, color:"var(--nb-ink-soft)", whiteSpace:"nowrap" }}>{m.model}</div>
+            <div style={{ fontSize:13, fontWeight:600, marginTop:8, whiteSpace:"nowrap" }}>{m.op ? t('operator_of', m.op) : t('no_active_op')}</div>
+          </div>
+          <div style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={m.status} /></div>
+        </div>
+
+        <div style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
+          <MetricBlock label={t('kpi_fuel')} value={m.fuel} unit="L"
+            sub={fuelRate > 30 ? t('fuel_anomaly', fuelRate) : t('fuel_normal', fuelRate)}
+            subTone={fuelRate > 30 ? "bad" : "good"} />
+          <MetricBlock label={t('kpi_hours')} value={m.hours} unit="h"
+            sub={m.hours > 0 ? t('on_track') : t('no_activity')}
+            subTone={m.hours > 0 ? "good" : "muted"} />
+          <MetricBlock label={t('kpi_production')} value={m.prod} unit={m.prodUnit !== "—" ? m.prodUnit : ""}
+            sub={m.prod > 0 ? t('logged') : t('not_logged')} subTone="muted" />
+          <div style={{ padding:"16px 18px", background:m.issues>0?"var(--nb-coral)":"var(--nb-paper)", flex:1 }}>
+            <div className="nb-label">{t('kpi_open_issues')}</div>
+            <div style={{ fontSize:30, fontWeight:800, marginTop:6, lineHeight:1 }}>{m.issues}</div>
+            <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, fontWeight:700, color:m.issues>0?"#791f1f":"var(--nb-muted)", marginTop:6, textTransform:"uppercase", letterSpacing:".05em" }}>{m.issues > 0 ? t('action_needed') : t('status_clear')}</div>
+          </div>
+        </div>
+
+        <div style={{ padding:18 }}>
+          {OPEN_ISSUES.filter(iss => iss.machine === selected).length > 0 && (
+            <>
+              <div className="nb-label" style={{ marginBottom:8 }}>{t('kpi_open_issues')}</div>
+              {OPEN_ISSUES.filter(iss => iss.machine === selected).map((iss, i) => (
+                <div key={i} className="nb-card" style={{ padding:14, marginBottom:14, background:"var(--nb-yellow)" }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:6 }}>
+                    <span className="nb-tag ink">{iss.severity}</span>
+                    <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700 }}>{iss.time}</span>
+                    <span style={{ marginLeft:"auto", fontFamily:"var(--nb-mono)", fontSize:11 }}>{iss.op}</span>
+                  </div>
+                  <div style={{ fontSize:15, fontWeight:700, lineHeight:1.3 }}>{lang === 'ru' ? iss.titleRu : iss.title}</div>
+                  <div style={{ fontSize:12, fontStyle:"italic", color:"var(--nb-ink-soft)", marginTop:6 }}>{iss.orig}</div>
+                </div>
+              ))}
+            </>
+          )}
+
+          <div className="nb-label" style={{ marginBottom:8 }}>{t('todays_log', selected)}</div>
+          {machineLogs.length === 0 ? (
+            <div className="nb-card" style={{ padding:20, textAlign:"center", fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>{t('no_activity_today')}</div>
+          ) : (
+            <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+              {machineLogs.map((l, i) => (
+                <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 14px", borderBottom:i<machineLogs.length-1?"1.5px solid var(--nb-ink)":"none", background:l.severity==="warn"?"var(--nb-yellow)":"var(--nb-paper)" }}>
+                  <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, minWidth:42, paddingTop:2 }}>{l.time}</span>
+                  <Avatar2 initials={l.op} color={l.opColor} size={24} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontSize:13, lineHeight:1.4 }}>{lang === 'ru' ? l.raw : (l.rawEn || l.raw)}</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:4 }}>
+                      {l.tags.map((tag, j) => <span key={j} className={`nb-tag ${tag[1]}`}>{tag[0]}</span>)}
+                    </div>
+                  </div>
+                  <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, background:"var(--nb-ink)", color:"#fff", padding:"2px 7px", borderRadius:4, marginTop:2 }}>{l.conf}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FleetIntelligence() {
+  const { t } = useLangT();
+  const [tab, setTab] = React.useState("summary");
+  const tabs = [
+    { id:"summary", label:t('tab_summary'), icon:"▣" },
+    { id:"logs",    label:t('tab_logs'),    icon:"≡", count:FLEET_LOGS.length },
+    { id:"fleet",   label:t('tab_fleet'),   icon:"◫", count:5 },
+  ];
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ display:"flex", padding:"12px 22px", background:"var(--nb-bg)", borderBottom:"var(--nb-border-thick)", alignItems:"center", gap:8, flexShrink:0 }}>
+        {tabs.map(tb => {
+          const active = tb.id === tab;
+          return (
+            <button key={tb.id} onClick={() => setTab(tb.id)} style={{
+              fontFamily:"var(--nb-font)", fontWeight:700, fontSize:13,
+              padding:"8px 18px", background:active?"var(--nb-yellow)":"var(--nb-paper)",
+              color:"var(--nb-ink)", border:"2px solid var(--nb-ink)", borderRadius:"var(--nb-radius-sm)",
+              cursor:"pointer", boxShadow:active?"var(--nb-shadow-sm)":"2px 2px 0 0 var(--nb-ink)",
+              display:"flex", alignItems:"center", gap:7,
+              transition:"background .1s, box-shadow .06s, transform .06s",
+              transform:active?"translate(-1px,-1px)":"none",
+            }}>
+              <span style={{ fontSize:14 }}>{tb.icon}</span>
+              {tb.label}
+              {tb.count && <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, padding:"1px 6px", background:active?"var(--nb-ink)":"var(--nb-bg-alt)", color:active?"#fff":"var(--nb-ink)", borderRadius:999, border:"1.5px solid var(--nb-ink)" }}>{tb.count}</span>}
+            </button>
+          );
+        })}
+        <div style={{ marginLeft:"auto", display:"flex", gap:8 }}>
+          <button className="nb-btn">{t('btn_today')}</button>
+          <button className="nb-btn lime">{t('btn_export')}</button>
+        </div>
+      </div>
+
+      <div style={{ flex:1, overflow:"hidden" }}>
+        {tab === "summary" && <SummaryTab />}
+        {tab === "logs"    && <MachineLogsTab />}
+        {tab === "fleet"   && <FleetTab />}
+      </div>
+    </div>
+  );
+}
+
+window.__FleetIntelligence = FleetIntelligence;
+  </script>
+
+  <!-- Operator Sandbox component -->
+  <script type="text/babel">
+
+function useLangT2() {
+  const { lang } = window.__useLang();
+  const T = window.__T[lang];
+  const t = (key, ...args) => { const v = T[key]; return typeof v === 'function' ? v(...args) : (v ?? key); };
+  return { t, lang };
+}
+
+const OPS_DATA = {
+  ivan: {
+    tg_id:"200001",
+    nameRu:"Иван Сидоров", nameEn:"Ivan Sidorov",
+    roleRu:"Оператор экскаватора", roleEn:"Excavator operator",
+    av:"ИС", color:"var(--nb-paper)",
+    machines:[{ reg:"CAT-101", active:true, status:"working" }, { reg:"BLZ-042", active:false, status:"idle" }],
+    activeMachine:"CAT-101", shiftOn:true,
+    history:[
+      { from:"op", textRu:"Начинаю смену на CAT-101",     textEn:"Starting shift on CAT-101",     ts:"07:02" },
+      { from:"sys", tone:"ok",  textRu:"Смена открыта. Машина CAT-101 активна. Удачной смены!", textEn:"Shift opened. Machine CAT-101 active. Good luck!", ts:"07:02", ext:{ intent:"shift_start", conf:"97%" } },
+      { from:"op", textRu:"Залил 150 литров",             textEn:"Fuelled 150 litres",            ts:"08:15" },
+      { from:"sys", tone:"ok",  textRu:"Записано: 150л топлива",       textEn:"Logged: 150L fuel",             ts:"08:15", ext:{ intent:"fuel_log",   fields:"vol: 150", conf:"96%" } },
+      { from:"op", textRu:"Наработка 6 часов",            textEn:"Engine hours 6",                ts:"09:30" },
+      { from:"sys", tone:"ok",  textRu:"Записано: 6ч наработки",       textEn:"Logged: 6h engine hours",       ts:"09:30", ext:{ intent:"hours_log",  fields:"hours: 6", conf:"94%" } },
+    ],
+  },
+  petr: {
+    tg_id:"200002",
+    nameRu:"Пётр Кузнецов", nameEn:"Pyotr Kuznetsov",
+    roleRu:"Оператор самосвала", roleEn:"Dump truck operator",
+    av:"ПК", color:"var(--nb-paper)",
+    machines:[{ reg:"BLZ-042", active:true, status:"warning" }],
+    activeMachine:"BLZ-042", shiftOn:true,
+    history:[
+      { from:"op", textRu:"Начинаю смену на BLZ-042",     textEn:"Starting shift on BLZ-042",     ts:"07:10" },
+      { from:"sys", tone:"ok",  textRu:"Смена открыта. Машина BLZ-042 активна.", textEn:"Shift opened. Machine BLZ-042 active.", ts:"07:10", ext:{ intent:"shift_start", conf:"97%" } },
+      { from:"op", textRu:"Залил 80л солярки",            textEn:"Fuelled 80L diesel",            ts:"08:00" },
+      { from:"sys", tone:"ok",  textRu:"Записано: 80л топлива",        textEn:"Logged: 80L fuel",              ts:"08:00", ext:{ intent:"fuel_log",   fields:"vol: 80", conf:"93%" } },
+      { from:"op", textRu:"Гидравлика не поднимает кузов", textEn:"Hydraulics won't lift the dump body", ts:"09:47" },
+      { from:"sys", tone:"warn", textRu:"Зафиксировано: гидравлика, MEDIUM. Механик уведомлён.", textEn:"Logged: hydraulics, MEDIUM. Mechanic notified.", ts:"09:47", ext:{ intent:"issue_report", fields:"hydraulics · warning", conf:"88%" } },
+      { from:"sys", tone:"ok",  textRu:"VFM: Опишите подробнее — когда впервые появилось? Работаете или стоите?", textEn:"VFM: Describe further — when did it first appear? Are you working or stopped?", ts:"09:48" },
+      { from:"op", textRu:"Стоим, началось после загрузки", textEn:"Standing by, started after loading", ts:"09:49" },
+      { from:"sys", tone:"warn", textRu:"Записано. Рекомендую не продолжать до осмотра механика.", textEn:"Logged. Recommend not continuing until mechanic inspection.", ts:"09:49", ext:{ intent:"status_update", fields:"context added", conf:"91%" } },
+    ],
+  },
+  misha: {
+    tg_id:"200003",
+    nameRu:"Михаил Фёдоров", nameEn:"Mikhail Fyodorov",
+    roleRu:"Оператор бульдозера", roleEn:"Bulldozer operator",
+    av:"МФ", color:"var(--nb-paper)",
+    machines:[{ reg:"KOM-007", active:true, status:"working" }],
+    activeMachine:"KOM-007", shiftOn:true,
+    history:[
+      { from:"op", textRu:"начинаю KOM-007",              textEn:"starting KOM-007",              ts:"07:30" },
+      { from:"sys", tone:"ok",  textRu:"Смена открыта. Машина KOM-007 активна.", textEn:"Shift opened. Machine KOM-007 active.", ts:"07:30", ext:{ intent:"shift_start", conf:"95%" } },
+      { from:"op", textRu:"Нужен фильтр гидравлический",  textEn:"Need a hydraulic filter",       ts:"10:15" },
+      { from:"sys", tone:"ok",  textRu:"Запрос запчасти зафиксирован: гидравлический фильтр, KOM-007.", textEn:"Parts request logged: hydraulic filter, KOM-007.", ts:"10:15", ext:{ intent:"parts_request", fields:"hydraulic filter", conf:"92%" } },
+    ],
+  },
+  sergey: {
+    nameRu:"Сергей Власов", nameEn:"Sergey Vlasov",
+    roleRu:"Многомашинный оператор", roleEn:"Multi-machine operator",
+    av:"СВ", color:"var(--nb-paper)",
+    machines:[{ reg:"GRD-003", active:false, status:"idle" }, { reg:"KRN-005", active:false, status:"idle" }],
+    activeMachine:null, shiftOn:false, history:[],
+  },
+};
+
+function classifyReply(text, T) {
+  const t = text.toLowerCase();
+  if (/начин|смен|start|shift/.test(t))
+    return { tone:"ok", text:T.reply_shift_start, ext:{ intent:"shift_start", conf:"97%" } };
+  if (/конч|закон|заверш|ended|finish/.test(t))
+    return { tone:"ok", text:T.reply_shift_end, ext:{ intent:"shift_end", conf:"96%" } };
+  if (/залил|топлив|солярк|заправ|fuel|litr/.test(t)) {
+    const n = t.match(/\d+/); const v = n ? n[0] : "?";
+    return { tone:"ok", text:T.reply_fuel(v), ext:{ intent:"fuel_log", fields:`vol: ${v}`, conf:"93%" } };
+  }
+  if (/наработ|часов|hours|engine/.test(t)) {
+    const n = t.match(/\d+/); const h = n ? n[0] : "?";
+    return { tone:"ok", text:T.reply_hours(h), ext:{ intent:"hours_log", fields:`hours: ${h}`, conf:"94%" } };
+  }
+  if (/пожар|горит|fire/.test(t))
+    return { tone:"bad", text:T.reply_critical, ext:{ intent:"issue_report", fields:"severity: critical", conf:"97%" } };
+  if (/стучит|течь|масло|гидравл|неисправ|сломал|проблем|knock|leak|hydraul/.test(t))
+    return { tone:"warn", text:T.reply_issue, ext:{ intent:"issue_report", fields:"severity: warning", conf:"87%" } };
+  if (/куб|рейс|тонн|вывезли|cubic|moved/.test(t)) {
+    const n = t.match(/\d+/);
+    return { tone:"ok", text:T.reply_production, ext:{ intent:"production_log", fields:n?`qty: ${n[0]}`:"qty: ?", conf:"90%" } };
+  }
+  if (/запчаст|фильтр|нужн|замен|filter|need|part/.test(t))
+    return { tone:"ok", text:T.reply_parts, ext:{ intent:"parts_request", fields:"logged", conf:"89%" } };
+  return { tone:"ok", text:T.reply_default, ext:{ intent:"status_update", conf:"82%" } };
+}
+
+function StatusDot({ status }) {
+  const colors = { working:"var(--nb-good)", warning:"var(--nb-warn)", idle:"#cdc9bd", down:"var(--nb-bad)" };
+  return <span style={{ width:10, height:10, borderRadius:"50%", background:colors[status]||"#cdc9bd", border:"1.5px solid var(--nb-ink)", flexShrink:0, display:"inline-block" }} />;
+}
+
+function Avatar({ initials, color, size=36 }) {
+  return (
+    <div style={{ width:size, height:size, borderRadius:"50%", background:color, border:"2px solid var(--nb-ink)",
+      display:"flex", alignItems:"center", justifyContent:"center",
+      fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:size*0.32,
+      flexShrink:0, boxShadow:"2px 2px 0 0 var(--nb-ink)", color:"var(--nb-ink)" }}>{initials}</div>
+  );
+}
+
+function OperatorChip({ op, active, onClick, lang }) {
+  return (
+    <div onClick={onClick} style={{ cursor:"pointer", padding:"10px 12px", display:"flex", alignItems:"center", gap:10,
+      background:active?"var(--nb-yellow)":"var(--nb-paper)", borderBottom:"2px solid var(--nb-ink)", transition:"background .12s" }}>
+      <Avatar initials={op.av} color={active?"var(--nb-paper)":"var(--nb-bg-alt)"} size={34} />
+      <div style={{ flex:1, minWidth:0 }}>
+        <div style={{ fontWeight:700, fontSize:13, lineHeight:1.2 }}>{lang === 'ru' ? op.nameRu : op.nameEn}</div>
+        <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-ink-soft)", marginTop:2 }}>
+          {op.machines.map(m => m.reg).join(" · ")}
+        </div>
+      </div>
+      <StatusDot status={op.shiftOn ? "working" : "idle"} />
+    </div>
+  );
+}
+
+function Bubble({ msg, opColor, lang }) {
+  const text = lang === 'ru' ? msg.textRu : (msg.textEn || msg.textRu);
+  if (msg.from === "op") {
+    return (
+      <div style={{ alignSelf:"flex-end", maxWidth:"78%" }}>
+        <div style={{ background:opColor, border:"2px solid var(--nb-ink)", borderRadius:"12px 12px 4px 12px",
+          padding:"8px 12px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13.5, fontWeight:500, lineHeight:1.45 }}>{text}</div>
+        <div style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", marginTop:3, textAlign:"right" }}>{msg.ts}</div>
+      </div>
+    );
+  }
+  const toneBg = { ok:"var(--nb-paper)", warn:"var(--nb-yellow)", bad:"var(--nb-coral)" }[msg.tone || "ok"];
+  const assistantLabel = lang === 'ru' ? "ассистент" : "assistant";
+  return (
+    <div style={{ alignSelf:"flex-start", maxWidth:"82%" }}>
+      <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+        <div style={{ width:22, height:22, borderRadius:"50%", background:"var(--nb-ink)", color:"#fff",
+          display:"flex", alignItems:"center", justifyContent:"center",
+          fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700, border:"2px solid var(--nb-ink)" }}>VFM</div>
+        <span style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", textTransform:"uppercase", letterSpacing:".08em" }}>
+          {assistantLabel} · {msg.ts}
+        </span>
+      </div>
+      <div style={{ background:toneBg, border:"2px solid var(--nb-ink)", borderRadius:"4px 12px 12px 12px",
+        padding:"8px 12px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13, lineHeight:1.45 }}>
+        {text}
+        {msg.ext && (
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6, paddingTop:6, borderTop:"1.5px dashed rgba(0,0,0,0.25)" }}>
+            <span className="nb-tag ink">{msg.ext.intent}</span>
+            {msg.ext.fields && <span className="nb-tag">{msg.ext.fields}</span>}
+            <span className="nb-tag">conf {msg.ext.conf}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MachinePill({ m, onClick }) {
+  let bg = "var(--nb-paper)";
+  if (m.active && m.status === "warning") bg = "var(--nb-coral)";
+  else if (m.active) bg = "var(--nb-yellow)";
+  return (
+    <span onClick={onClick} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, padding:"4px 10px",
+      background:bg, border:"2px solid var(--nb-ink)", borderRadius:4,
+      boxShadow:m.active?"2px 2px 0 0 var(--nb-ink)":"none", cursor:"pointer", transition:"all .1s", letterSpacing:".02em" }}>{m.reg}</span>
+  );
+}
+
+function OperatorSandbox() {
+  const { t, lang } = useLangT2();
+  const [opData, setOpData] = React.useState(() => JSON.parse(JSON.stringify(OPS_DATA)));
+  const [currentId, setCurrentId] = React.useState("petr");
+  const [draft, setDraft] = React.useState("");
+  const [apiLoading, setApiLoading] = React.useState(false);
+  const msgsRef = React.useRef(null);
+  const op = opData[currentId];
+
+  React.useEffect(() => {
+    if (msgsRef.current) msgsRef.current.scrollTop = msgsRef.current.scrollHeight;
+  }, [op.history.length, currentId, apiLoading]);
+
+  const TL = window.__T[lang];
+
+  const _applyReply = (opId, text, replyBubble) => {
+    setOpData(prev => {
+      const next = { ...prev };
+      const o = { ...next[opId] };
+      o.history = [...o.history, replyBubble];
+      if (/начин|смен|start|shift/.test(text.toLowerCase())) o.shiftOn = true;
+      if (/конч|закон|заверш|ended|finish/.test(text.toLowerCase())) o.shiftOn = false;
+      next[opId] = o;
+      return next;
+    });
+  };
+
+  const send = async (textArg) => {
+    const text = (textArg ?? draft).trim();
+    if (!text || apiLoading) return;
+    const now = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
+    const snapId = currentId;
+    setDraft("");
+
+    setOpData(prev => {
+      const next = { ...prev };
+      const o = { ...next[snapId] };
+      o.history = [...o.history, { from:"op", textRu:text, textEn:text, ts:now }];
+      next[snapId] = o;
+      return next;
+    });
+
+    const opEntry = opData[snapId];
+    if (opEntry.tg_id) {
+      setApiLoading(true);
+      try {
+        const res = await fetch('/api/v1/vfm/update', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operator_tg_id: opEntry.tg_id,
+            chat_id: 'sandbox',
+            text,
+            source: 'rest',
+            modality: 'text',
+          }),
+        });
+        const data = await res.json();
+        const replyTs = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
+        const tone = (data.errors && data.errors.length > 0) ? 'warn'
+          : data.intent === 'issue_report' ? 'warn'
+          : data.confidence_route === 'CONFIRM' ? 'warn'
+          : 'ok';
+        const confPct = data.confidence != null ? `${Math.round(data.confidence * 100)}%` : '—';
+        _applyReply(snapId, text, {
+          from: 'sys', tone,
+          textRu: data.reply || TL.reply_default,
+          textEn:  data.reply || TL.reply_default,
+          ts: replyTs,
+          ext: { intent: data.intent || 'unknown', conf: confPct },
+        });
+      } catch (_err) {
+        const fallback = classifyReply(text, TL);
+        const replyTs = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
+        _applyReply(snapId, text, { from:'sys', tone:fallback.tone, textRu:fallback.text, textEn:fallback.text, ts:replyTs, ext:fallback.ext });
+      } finally {
+        setApiLoading(false);
+      }
+    } else {
+      setTimeout(() => {
+        const reply = classifyReply(text, TL);
+        const replyTs = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
+        _applyReply(snapId, text, { from:'sys', tone:reply.tone, textRu:reply.text, textEn:reply.text, ts:replyTs, ext:reply.ext });
+      }, 550);
+    }
+  };
+
+  const switchMachine = reg => {
+    setOpData(prev => {
+      const next = { ...prev };
+      const o = { ...next[currentId] };
+      o.activeMachine = reg;
+      o.machines = o.machines.map(m => ({ ...m, active:m.reg === reg }));
+      const now = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
+      const switchText = TL.reply_switch(reg);
+      o.history = [...o.history, { from:"sys", tone:"ok", textRu:switchText, textEn:switchText, ts:now, ext:{ intent:"machine_switch", fields:reg, conf:"99%" } }];
+      next[currentId] = o;
+      return next;
+    });
+  };
+
+  const toggleShift = () => {
+    if (!op.shiftOn) send(TL.shift_start_msg(op.machines[0].reg));
+    else send(TL.shift_end_msg);
+  };
+
+  const quick = [
+    { labelKey:"ql_fuel",  textKey:"qt_fuel",  color:"var(--nb-paper)" },
+    { labelKey:"ql_hours", textKey:"qt_hours", color:"var(--nb-paper)" },
+    { labelKey:"ql_issue", textKey:"qt_issue", color:"var(--nb-coral)", textLight:true },
+    { labelKey:"ql_prod",  textKey:"qt_prod",  color:"var(--nb-paper)" },
+    { labelKey:"ql_parts", textKey:"qt_parts", color:"var(--nb-paper)" },
+  ];
+
+  const opName = lang === 'ru' ? op.nameRu : op.nameEn;
+  const opRole = lang === 'ru' ? op.roleRu : op.roleEn;
+
+  return (
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", flex:1, minHeight:0 }}>
+        {/* Operator list */}
+        <div style={{ background:"var(--nb-bg-alt)", borderRight:"var(--nb-border-thick)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+          <div style={{ padding:"12px 14px 10px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-yellow)" }}>
+            <div className="nb-label">{t('ops_header')}</div>
+            <div style={{ fontWeight:700, fontSize:18, marginTop:2 }}>{t('ops_count')}</div>
+          </div>
+          <div className="nb-scroll" style={{ overflowY:"auto", flex:1 }}>
+            {Object.entries(opData).map(([id, o]) => (
+              <OperatorChip key={id} op={o} active={id===currentId} onClick={() => setCurrentId(id)} lang={lang} />
+            ))}
+          </div>
+          <div style={{ padding:"10px 12px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-paper)", fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", lineHeight:1.5 }}>
+            <div style={{ fontWeight:700, color:"var(--nb-ink)", marginBottom:2 }}>{t('sandbox_mode')}</div>
+            {t('sandbox_hint')}
+          </div>
+        </div>
+
+        {/* Chat panel */}
+        <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <div style={{ padding:"14px 18px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
+            <div style={{ display:"flex", alignItems:"center", gap:12 }}>
+              <Avatar initials={op.av} color={op.color} size={42} />
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:18, fontWeight:700, lineHeight:1.1 }}>{opName}</div>
+                <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)", marginTop:2, textTransform:"uppercase", letterSpacing:".06em" }}>
+                  {opRole} · {op.shiftOn ? t('on_shift') : t('off_shift')}
+                </div>
+              </div>
+              <button className={`nb-btn ${op.shiftOn ? "coral" : "yellow"}`} onClick={toggleShift}>
+                {op.shiftOn ? t('btn_end_shift') : t('btn_start_shift')}
+              </button>
+            </div>
+            <div style={{ display:"flex", alignItems:"center", gap:8, flexWrap:"wrap" }}>
+              <span className="nb-label">{t('machines_label')}</span>
+              {op.machines.map(m => <MachinePill key={m.reg} m={m} onClick={() => switchMachine(m.reg)} />)}
+            </div>
+          </div>
+
+          <div style={{ padding:"10px 18px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
+            <span className="nb-label" style={{ marginRight:4 }}>{t('quick_log_label')}</span>
+            {quick.map(q => (
+              <button key={q.labelKey} className="nb-btn" style={{ background:q.color, color:q.textLight?"#fafaf7":"var(--nb-ink)" }} onClick={() => send(t(q.textKey))}>
+                {t(q.labelKey)}
+              </button>
+            ))}
+          </div>
+
+          <div ref={msgsRef} className="nb-scroll" style={{
+            flex:1, overflowY:"auto", padding:"18px 18px 8px", display:"flex", flexDirection:"column", gap:14,
+            background:`repeating-linear-gradient(0deg, var(--nb-bg) 0 28px, var(--nb-bg) 28px 29px, rgba(10,10,10,0.04) 29px 30px)`,
+          }}>
+            {op.history.length === 0 ? (
+              <div style={{ margin:"auto", textAlign:"center", background:"var(--nb-paper)", border:"var(--nb-border)", borderRadius:8, padding:"20px 28px", boxShadow:"var(--nb-shadow)" }}>
+                <div style={{ fontSize:28, fontWeight:800 }}>{t('no_msgs_title')}</div>
+                <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)", marginTop:6 }}>{t('no_msgs_hint')}</div>
+              </div>
+            ) : op.history.map((msg, i) => <Bubble key={i} msg={msg} opColor={"var(--nb-bg-alt)"} lang={lang} />)}
+            {apiLoading && (
+              <div style={{ alignSelf:"flex-start", maxWidth:"82%" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
+                  <div style={{ width:22, height:22, borderRadius:"50%", background:"var(--nb-ink)", color:"#fff",
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700, border:"2px solid var(--nb-ink)" }}>VFM</div>
+                </div>
+                <div style={{ background:"var(--nb-paper)", border:"2px solid var(--nb-ink)", borderRadius:"4px 12px 12px 12px",
+                  padding:"10px 16px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontFamily:"var(--nb-mono)", fontSize:12, letterSpacing:".04em",
+                  display:"flex", alignItems:"center", gap:6 }}>
+                  <span style={{ animation:"none", opacity:.7 }}>▪ ▪ ▪</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div style={{ padding:"12px 18px", borderTop:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", gap:10, flexShrink:0 }}>
+            <input className="nb-input" style={{ flex:1, opacity:apiLoading?.5:1 }}
+              placeholder={t('input_placeholder', opName.split(" ")[0])}
+              value={draft} onChange={e => setDraft(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter" && !apiLoading) send(); }}
+              disabled={apiLoading} />
+            <button className="nb-btn ink" onClick={() => send()} disabled={apiLoading}
+              style={{ opacity:apiLoading?.5:1 }}>{t('btn_send')}</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+window.__OperatorSandbox = OperatorSandbox;
+  </script>
+
+  <!-- App shell -->
+  <script type="text/babel">
+const { useState } = React;
+const LangContext = window.__LangContext;
+
+function App() {
+  const [view, setView] = useState("owner");
+  const [lang, setLang] = useState("ru");
+  const FleetIntelligence = window.__FleetIntelligence;
+  const OperatorSandbox   = window.__OperatorSandbox;
+  const T = window.__T[lang];
+
+  const toggleLang = () => setLang(l => l === 'ru' ? 'en' : 'ru');
+
+  return (
+    <LangContext.Provider value={{ lang, setLang }}>
+      <div style={{ height:"100vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+
+        {/* Header */}
+        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 20px", height:58,
+          background:"var(--nb-ink)", color:"#fff", borderBottom:"3px solid var(--nb-ink)", flexShrink:0 }}>
+
+          {/* Logo + wordmark */}
+          <div style={{ width:32, height:32, background:"var(--nb-lime)", border:"2px solid #fff", borderRadius:4,
+            display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"var(--nb-ink)", fontSize:15, flexShrink:0 }}>L</div>
+          <div style={{ fontWeight:800, fontSize:16, letterSpacing:"-.01em", whiteSpace:"nowrap" }}>LOGBUK</div>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"2px 8px",
+            border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:999,
+            textTransform:"lowercase", letterSpacing:".04em", color:"rgba(255,255,255,0.6)", whiteSpace:"nowrap" }}>{T.vfm_label}</span>
+
+          {/* Divider */}
+          <div style={{ width:2, height:28, background:"rgba(255,255,255,0.2)", borderRadius:1, margin:"0 4px", flexShrink:0 }} />
+
+          {/* View-switch buttons */}
+          {[
+            { id:"owner",    labelKey:"view_fleet",    icon:"▣" },
+            { id:"operator", labelKey:"view_operator", icon:"◎" },
+          ].map(vt => (
+            <button key={vt.id} className={`nb-view-btn${view === vt.id ? " active" : ""}`} onClick={() => setView(vt.id)}>
+              <span style={{ fontSize:14 }}>{vt.icon}</span>
+              {T[vt.labelKey]}
+            </button>
+          ))}
+
+          {/* Right side */}
+          <div style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center" }}>
+
+            {/* Language toggle */}
+            <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.08)", border:"2px solid rgba(255,255,255,0.25)", borderRadius:4, padding:2 }}>
+              <button className={`nb-lang-btn${lang === 'ru' ? " active" : ""}`} onClick={() => setLang('ru')}>RU</button>
+              <button className={`nb-lang-btn${lang === 'en' ? " active" : ""}`} onClick={() => setLang('en')}>EN</button>
+            </div>
+
+            {/* Status badges */}
+            <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"3px 10px",
+              border:"2px solid #fff", borderRadius:4, background:"var(--nb-coral)",
+              letterSpacing:".04em", boxShadow:"2px 2px 0 0 rgba(255,255,255,0.3)" }}>{T.open_issue_badge}</span>
+            <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"3px 10px",
+              border:"2px solid #fff", borderRadius:4, background:"var(--nb-lime)", color:"var(--nb-ink)",
+              letterSpacing:".04em", boxShadow:"2px 2px 0 0 rgba(255,255,255,0.3)" }}>{T.shifts_active_badge}</span>
+
+            {/* Owner avatar */}
+            <div style={{ width:32, height:32, borderRadius:"50%", background:"var(--nb-paper)", border:"2px solid #fff",
+              display:"flex", alignItems:"center", justifyContent:"center",
+              fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:10, color:"var(--nb-ink)",
+              boxShadow:"2px 2px 0 0 rgba(255,255,255,0.3)" }}>ОВ</div>
+          </div>
+        </div>
+
+        {/* Content */}
+        <div style={{ flex:1, overflow:"hidden", position:"relative" }}>
+          <div style={{ position:"absolute", inset:0, display:view==="owner"?"flex":"none", flexDirection:"column", overflow:"hidden" }}>
+            <FleetIntelligence />
+          </div>
+          <div style={{ position:"absolute", inset:0, display:view==="operator"?"flex":"none", flexDirection:"column", overflow:"hidden" }}>
+            <OperatorSandbox />
+          </div>
+        </div>
+      </div>
+    </LangContext.Provider>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("app-root")).render(<App />);
+  </script>
+</body>
+</html>

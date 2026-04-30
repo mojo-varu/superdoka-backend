@@ -1,35 +1,68 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, and_, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
+import re
 import secrets
 import string
 from enum import Enum
 
 # Import your existing dependencies
 from app.db.database import get_db
-from app.db.models import User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport, ActivityLog
-from app.api.deps import get_any_telegram_user, require_owner
+from app.db.models import (
+    User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport,
+    ActivityLog, ActiveSession, MachineState, TimelineEvent,
+)
+from app.api.deps import get_any_platform_user, require_owner
 
 logger = logging.getLogger(__name__)
 
 owner_router = APIRouter(tags=["Owner Operations"])
 
+_MACHINE_TYPE_ABBREV: dict[str, str] = {
+    "экскаватор": "ЭКС",
+    "самосвал":   "САМ",
+    "бульдозер":  "БУЛ",
+    "грейдер":    "ГРД",
+    "кран":       "КРН",
+    "погрузчик":  "ПГР",
+    "каток":      "КАТ",
+    "трактор":    "ТРК",
+    "автогрейдер": "АГР",
+    "скрепер":    "СКР",
+}
+
+def _derive_alias(machine_type: str, reg_number: str) -> str:
+    abbrev = _MACHINE_TYPE_ABBREV.get(machine_type.lower(), machine_type[:3].upper())
+    # extract trailing region digits (2-3 chars at end of GOST plate)
+    m = re.search(r"\d{2,3}$", reg_number)
+    suffix = m.group() if m else reg_number[-3:]
+    return f"{abbrev}-{suffix}"
+
+
 class MachineCreate(BaseModel):
     machine_type: str = Field(..., example="экскаватор")
     model: str = Field(..., example="Caterpillar 320D")
     year: int = Field(..., ge=1900, le=2030, example=2018)
-    reg_number: str = Field(..., example="А771МР77")
+    # GOST 3207-77: [АВЕКМНОРСТУХ] + 3 digits + 2 letters + 2–3 digit region code
+    reg_number: str = Field(
+        ...,
+        pattern=r"^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$",
+        example="А771МР77",
+    )
+    alias: Optional[str] = Field(None, max_length=50, example="КАТ-101")
     serial_number: Optional[str] = None
     notes: Optional[str] = None
 
 class MachineResponse(BaseModel):
     id: int
     reg_number: str
+    alias: Optional[str] = None
     machine_type: str
     model: str
     year: int
@@ -42,8 +75,9 @@ class MachineResponse(BaseModel):
         from_attributes = True
 
 class OperatorCreate(BaseModel):
-    operator_name: str = Field(..., example="Андрей")
-    contact: str = Field(..., example="79992348765")
+    name: str = Field(..., example="Андрей Иванов")
+    mobile: str = Field(..., example="+79992348765")
+    platform_user_id: Optional[int] = None
     company_name: Optional[str] = None
 
 class OperatorResponse(BaseModel):
@@ -53,14 +87,14 @@ class OperatorResponse(BaseModel):
     company_name: Optional[str] = None
     is_active: bool
     created_at: datetime
-    telegram_id: Optional[int] = None
+    platform_user_id: Optional[int] = None
 
     class Config:
         from_attributes = True
 
 class AssignmentCreate(BaseModel):
-    reg_number: str = Field(..., example="А771МР77")
-    operator_contact: str = Field(..., example="79992348765")
+    operator_id: int
+    machine_id: int
 
 class AssignmentResponse(BaseModel):
     id: int
@@ -119,9 +153,10 @@ class OwnerRegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
     mobile: str = Field(..., min_length=10, max_length=20)
     company_name: Optional[str] = Field(None, max_length=100)
-    telegram_id: Optional[int] = None
+    platform_user_id: Optional[int] = None
 
 class OwnerRegisterResponse(BaseModel):
+    id: int
     message: str
     owner_id: str
 
@@ -153,7 +188,7 @@ async def register_owner(
             mobile=request.mobile,
             company_name=request.company_name,
             user_type="OWNER",
-            telegram_id=request.telegram_id,
+            platform_user_id=request.platform_user_id,
             owner_id=None
         )
         
@@ -173,6 +208,7 @@ async def register_owner(
         await db.commit()
         
         return OwnerRegisterResponse(
+            id=owner.id,
             message="Owner registered successfully",
             owner_id=str(owner.id)
         )
@@ -188,7 +224,7 @@ async def register_owner(
 #     name: str,
 #     mobile: str,
 #     company_name: Optional[str] = None,
-#     telegram_id: Optional[int] = None,
+#     platform_user_id: Optional[int] = None,
 #     db: AsyncSession = Depends(get_db)
 # ):
 #     """Register new owner"""
@@ -211,7 +247,7 @@ async def register_owner(
 #             mobile=mobile,
 #             company_name=company_name,
 #             user_type=UserTypeEnum.OWNER.value,
-#             telegram_id=telegram_id,
+#             platform_user_id=platform_user_id,
 #             owner_id=None
 #         )
         
@@ -247,16 +283,10 @@ async def add_machine(
 ):
     """Add new machine"""
     try:
-        # Check if machine with reg_number already exists
-        existing = await db.execute(
-            select(Machine).where(Machine.reg_number == machine.reg_number)
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Machine with this registration number already exists")
-        
-        # Create machine
+        resolved_alias = machine.alias or _derive_alias(machine.machine_type, machine.reg_number)
         db_machine = Machine(
             reg_number=machine.reg_number,
+            alias=resolved_alias,
             machine_type=machine.machine_type,
             model=machine.model,
             year=machine.year,
@@ -264,12 +294,21 @@ async def add_machine(
             serial_number=machine.serial_number,
             notes=machine.notes
         )
-        
         db.add(db_machine)
         await db.commit()
         await db.refresh(db_machine)
-        
-        # Log activity
+    except IntegrityError:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail=f"Machine '{machine.reg_number}' is already registered"
+        )
+    except Exception as e:
+        await db.rollback()
+        logger.error(f"Error adding machine: {str(e)}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+    try:
         activity = ActivityLog(
             user_id=current_user.id,
             action="MACHINE_ADDED",
@@ -279,14 +318,10 @@ async def add_machine(
         )
         db.add(activity)
         await db.commit()
-        
-        return db_machine
-        
-    except HTTPException:
-        raise
     except Exception as e:
-        logger.error(f"Error adding machine: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+        logger.error(f"Error logging machine activity: {str(e)}")
+
+    return db_machine
 
 @owner_router.get("/machines", response_model=List[MachineResponse])
 async def get_machines(
@@ -316,21 +351,22 @@ async def add_operator(
         existing = await db.execute(
             select(User).where(
                 and_(
-                    User.mobile == operator.contact,
+                    User.mobile == operator.mobile,
                     User.owner_id == current_user.id,
-                    User.user_type == UserTypeEnum.OPERATOR.value
+                    User.user_type == "OPERATOR"
                 )
             )
         )
         if existing.scalar_one_or_none():
             raise HTTPException(status_code=400, detail="Operator already exists for this owner")
-        
+
         # Create operator
         db_operator = User(
-            name=operator.operator_name,
-            mobile=operator.contact,
+            name=operator.name,
+            mobile=operator.mobile,
+            platform_user_id=operator.platform_user_id,
             company_name=operator.company_name,
-            user_type=UserTypeEnum.OPERATOR.value,
+            user_type="OPERATOR",
             owner_id=current_user.id
         )
         
@@ -344,7 +380,7 @@ async def add_operator(
             action="OPERATOR_ADDED",
             entity_type="USER",
             entity_id=db_operator.id,
-            details=f"Added operator {operator.operator_name} with contact {operator.contact}"
+            details=f"Added operator {operator.name} with mobile {operator.mobile}"
         )
         db.add(activity)
         await db.commit()
@@ -367,7 +403,7 @@ async def get_operators(
         select(User).where(
             and_(
                 User.owner_id == current_user.id,
-                User.user_type == UserTypeEnum.OPERATOR.value,
+                User.user_type == "OPERATOR",
                 User.is_active == True
             )
         )
@@ -380,59 +416,61 @@ async def assign_operator(
     current_user: User = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
-    """Assign operator to machine and generate Telegram link"""
+    """Assign operator to machine and generate onboarding link"""
     try:
-        # Get machine
-        machine_result = await db.execute(
+        # Verify machine belongs to this owner
+        machine = (await db.execute(
             select(Machine).where(
-                and_(
-                    Machine.reg_number == assignment.reg_number,
-                    Machine.owner_id == current_user.id,
-                    Machine.is_active == True
-                )
+                Machine.id        == assignment.machine_id,
+                Machine.owner_id  == current_user.id,
+                Machine.is_active == True,
             )
-        )
-        machine = machine_result.scalar_one_or_none()
+        )).scalar_one_or_none()
         if not machine:
             raise HTTPException(status_code=404, detail="Machine not found")
-        
-        # Get operator
-        operator_result = await db.execute(
+
+        # Verify operator belongs to this owner
+        operator = (await db.execute(
             select(User).where(
-                and_(
-                    User.mobile == assignment.operator_contact,
-                    User.owner_id == current_user.id,
-                    User.user_type == UserTypeEnum.OPERATOR.value,
-                    User.is_active == True
-                )
+                User.id        == assignment.operator_id,
+                User.owner_id  == current_user.id,
+                User.user_type == "OPERATOR",
+                User.is_active == True,
             )
-        )
-        operator = operator_result.scalar_one_or_none()
+        )).scalar_one_or_none()
         if not operator:
             raise HTTPException(status_code=404, detail="Operator not found")
-        
-        # Check if machine is already assigned
-        existing_assignment = await db.execute(
+
+        # Prevent duplicate active assignment for this (operator, machine) pair
+        pair_exists = (await db.execute(
             select(MachineAssignment).where(
-                and_(
-                    MachineAssignment.machine_id == machine.id,
-                    MachineAssignment.is_active == True
-                )
+                MachineAssignment.operator_id == operator.id,
+                MachineAssignment.machine_id  == machine.id,
+                MachineAssignment.is_active   == True,
             )
-        )
-        if existing_assignment.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Machine is already assigned to an operator")
-        
+        )).scalar_one_or_none()
+        if pair_exists:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Operator '{operator.name}' is already assigned to machine '{machine.alias or machine.reg_number}'"
+            )
+
         # Create assignment
         db_assignment = MachineAssignment(
             machine_id=machine.id,
             operator_id=operator.id,
-            is_active=True
+            is_active=True,
         )
-        
         db.add(db_assignment)
-        await db.commit()
-        await db.refresh(db_assignment)
+        try:
+            await db.commit()
+            await db.refresh(db_assignment)
+        except IntegrityError:
+            await db.rollback()
+            raise HTTPException(
+                status_code=409,
+                detail=f"Operator '{operator.name}' is already assigned to machine '{machine.alias or machine.reg_number}'"
+            )
         
         # Generate telegram link
         telegram_link = await MachineOperatorLinkGenerator.generate_operator_link(
@@ -586,7 +624,7 @@ async def assign_operator(
     ]
 
 
-from app.core.ner_handler import NERHandler, init_model, is_model_ready, model_load_error, post_process_ner
+from app.core.ner_handler import NERHandler, is_model_ready, model_load_error, post_process_ner
 import traceback
 
 
@@ -628,3 +666,146 @@ async def extract_entities(request: NERRequest, handler: NERHandler = Depends(ge
     except Exception as e:
         print(f"❌ NER inference failed: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=f"NER inference failed: {e}")
+
+
+# ---------------------------------------------------------------------------
+# Sandbox fleet endpoints (no auth — used by owner demo screen)
+# ---------------------------------------------------------------------------
+
+@owner_router.get("/fleet/summary")
+async def fleet_summary(db: AsyncSession = Depends(get_db)):
+    """
+    Full fleet overview: all machines with live state + active-shift/issue counts.
+    Powers the owner dashboard left nav and top-bar badges.
+    """
+    rows = (await db.execute(
+        select(Machine, MachineState, User)
+        .outerjoin(MachineState, MachineState.machine_id == Machine.id)
+        .outerjoin(User, User.id == MachineState.active_operator_id)
+        .where(Machine.is_active == True)
+        .order_by(Machine.reg_number)
+    )).all()
+
+    active_shifts = (await db.execute(
+        select(ActiveSession).where(ActiveSession.shift_state == "ACTIVE")
+    )).scalars().all()
+
+    machines = [
+        {
+            "id":                   m.id,
+            "reg_number":           m.reg_number,
+            "alias":                m.alias,
+            "machine_type":         m.machine_type,
+            "model":                f"{m.model} {m.year}",
+            "status":               (state.status if state else "IDLE").lower(),
+            "active_operator_name": op.name if op else None,
+            "fuel_today":           state.fuel_added_today   if state else 0,
+            "hours_today":          state.hours_worked_today if state else 0,
+            "open_issues":          state.open_issue_count   if state else 0,
+        }
+        for m, state, op in rows
+    ]
+
+    total_open_issues = sum(m["open_issues"] for m in machines)
+
+    return {
+        "active_shifts": len(active_shifts),
+        "open_issues":   total_open_issues,
+        "machines":      machines,
+    }
+
+
+@owner_router.get("/fleet/{machine_id}")
+async def machine_intelligence(machine_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Deep machine view: metrics, open issues, today's event log.
+    machine_id can be the reg_number (e.g. 'А771МР77'), alias (e.g. 'КАТ-101'), or integer DB id.
+    Powers the machine detail panel in the owner screen.
+    """
+    # Accept reg_number string or integer id
+    query = select(Machine)
+    try:
+        query = query.where(Machine.id == int(machine_id))
+    except ValueError:
+        query = query.where(Machine.reg_number == machine_id)
+
+    machine = (await db.execute(query)).scalar_one_or_none()
+    if not machine:
+        raise HTTPException(status_code=404, detail="Machine not found")
+
+    state = (await db.execute(
+        select(MachineState).where(MachineState.machine_id == machine.id)
+    )).scalar_one_or_none()
+
+    active_op = None
+    if state and state.active_operator_id:
+        active_op = (await db.execute(
+            select(User).where(User.id == state.active_operator_id)
+        )).scalar_one_or_none()
+
+    # Open issues
+    open_issues_rows = (await db.execute(
+        select(IssueReport)
+        .where(IssueReport.machine_id == machine.id, IssueReport.status == "REPORTED")
+        .order_by(IssueReport.created_at.desc())
+    )).scalars().all()
+
+    # Today's timeline
+    from datetime import date
+    today_start = datetime.combine(date.today(), datetime.min.time())
+    timeline_rows = (await db.execute(
+        select(TimelineEvent)
+        .where(TimelineEvent.machine_id == machine.id, TimelineEvent.created_at >= today_start)
+        .order_by(TimelineEvent.created_at)
+    )).scalars().all()
+
+    # Production today from PRODUCTION_LOG events
+    production_today = sum(
+        float(e.content.get("qty", 0))
+        for e in timeline_rows
+        if e.event_type == "PRODUCTION_LOG"
+    )
+
+    _dot = {
+        "WORKING": "d-work", "WARNING": "d-warn",
+        "DOWN": "d-down",    "IDLE": "d-idle", "MAINTENANCE": "d-idle",
+    }
+    status = state.status if state else "IDLE"
+
+    return {
+        "reg_number":          machine.reg_number,
+        "machine_type":        machine.machine_type,
+        "model":               f"{machine.model} {machine.year}",
+        "status":              status.lower(),
+        "status_class":        "sb-warn" if status == "WARNING" else ("sb-idle" if status == "IDLE" else "sb-work"),
+        "active_operator_name": active_op.name if active_op else None,
+        "metrics": {
+            "fuel_today":      state.fuel_added_today   if state else 0,
+            "hours_today":     state.hours_worked_today if state else 0,
+            "production_today": production_today,
+            "open_issues":     state.open_issue_count   if state else 0,
+            "fuel_rate":       (
+                round((state.fuel_added_today or 0) / state.hours_worked_today, 1)
+                if state and state.hours_worked_today else 0
+            ),
+        },
+        "open_issues": [
+            {
+                "title":    issue.description[:80],
+                "meta":     f"{issue.created_at.strftime('%H:%M')} · {active_op.name if active_op else '?'} · {issue.priority}",
+                "original": issue.original_text,
+            }
+            for issue in open_issues_rows
+        ],
+        "timeline": [
+            {
+                "time":       e.created_at.strftime("%H:%M"),
+                "event_type": e.event_type,
+                "raw_text":   e.raw_text or "",
+                "extracted":  f"{e.event_type.lower()} · conf {int((e.confidence or 0)*100)}%",
+                "dot_class":  _dot.get(status, "d-idle"),
+                "content":    e.content,
+            }
+            for e in timeline_rows
+        ],
+    }

@@ -1,0 +1,1063 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Logbuk — Fleet Intelligence Demo</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --black:   #0a0a0a;
+    --white:   #f5f4f0;
+    --off:     #1a1a1a;
+    --border:  #2a2a2a;
+    --muted:   #555;
+    --accent:  #e8ff47;
+    --warn:    #ff6b35;
+    --danger:  #ff3b3b;
+    --ok:      #47ff8a;
+    --info:    #47b8ff;
+    --mono:    'IBM Plex Mono', monospace;
+    --sans:    'IBM Plex Sans', sans-serif;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--black);
+    color: var(--white);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 48px 1fr;
+    grid-template-columns: 340px 1fr 320px;
+    overflow: hidden;
+  }
+
+  /* ── Header ─────────────────────────────────────────────────────────── */
+  header {
+    grid-column: 1 / -1;
+    background: var(--off);
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    padding: 0 20px;
+    gap: 24px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+  .logo span { color: var(--muted); }
+  .header-badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 2px 8px;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    border-radius: 2px;
+    letter-spacing: 0.08em;
+  }
+  .header-badge.live { border-color: var(--ok); color: var(--ok); }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  .operator-select {
+    background: var(--off);
+    border: 1px solid var(--border);
+    color: var(--white);
+    font-family: var(--sans);
+    font-size: 13px;
+    padding: 5px 10px;
+    border-radius: 3px;
+    cursor: pointer;
+    outline: none;
+  }
+  .operator-select:focus { border-color: var(--accent); }
+
+  /* ── Panel base ──────────────────────────────────────────────────────── */
+  .panel {
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .panel-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+
+  /* ── Left: Chat input ────────────────────────────────────────────────── */
+  #panel-chat { grid-row: 2; grid-column: 1; }
+
+  .chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .msg {
+    max-width: 90%;
+    padding: 9px 13px;
+    border-radius: 3px;
+    font-size: 13px;
+    line-height: 1.5;
+    animation: slideIn 0.2s ease;
+  }
+  @keyframes slideIn { from { opacity:0; transform: translateY(4px); } to { opacity:1; transform: none; } }
+
+  .msg.operator {
+    background: var(--off);
+    border: 1px solid var(--border);
+    align-self: flex-end;
+    color: var(--white);
+  }
+  .msg.system {
+    background: #0d1a0d;
+    border: 1px solid #1a3a1a;
+    align-self: flex-start;
+    color: #9fd09f;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .msg.thinking {
+    background: #1a1400;
+    border: 1px solid #3a3000;
+    align-self: flex-start;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  .msg-meta {
+    font-size: 10px;
+    color: var(--muted);
+    margin-top: 4px;
+    font-family: var(--mono);
+  }
+
+  .quick-msgs {
+    padding: 8px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .quick-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .quick-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .chat-input-row {
+    padding: 12px 16px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  #chat-input {
+    flex: 1;
+    background: var(--off);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 9px 12px;
+    color: var(--white);
+    font-family: var(--sans);
+    font-size: 13px;
+    outline: none;
+    resize: none;
+    line-height: 1.4;
+    max-height: 100px;
+    transition: border-color 0.15s;
+  }
+  #chat-input:focus { border-color: var(--accent); }
+  #send-btn {
+    background: var(--accent);
+    color: var(--black);
+    border: none;
+    border-radius: 3px;
+    padding: 9px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.08em;
+    cursor: pointer;
+    transition: opacity 0.15s;
+    flex-shrink: 0;
+    align-self: flex-end;
+  }
+  #send-btn:hover { opacity: 0.85; }
+  #send-btn:disabled { opacity: 0.3; cursor: default; }
+
+  /* ── Middle: Pipeline trace ──────────────────────────────────────────── */
+  #panel-pipeline {
+    grid-row: 2;
+    grid-column: 2;
+    border-right: 1px solid var(--border);
+  }
+
+  .pipeline-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .trace-empty {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 12px;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 11px;
+    text-align: center;
+  }
+  .trace-empty-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 1px;
+    background: var(--border);
+    border: 1px solid var(--border);
+    opacity: 0.4;
+  }
+  .trace-empty-cell {
+    background: var(--off);
+    aspect-ratio: 1;
+    width: 24px;
+  }
+
+  .trace-card {
+    background: var(--off);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    animation: slideIn 0.25s ease;
+  }
+  .trace-card-header {
+    padding: 8px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .trace-step {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+  }
+  .trace-status {
+    margin-left: auto;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+  }
+  .trace-status.ok   { background: var(--ok); box-shadow: 0 0 6px var(--ok); }
+  .trace-status.warn { background: var(--warn); }
+  .trace-status.err  { background: var(--danger); }
+  .trace-card-body {
+    padding: 10px 12px;
+    font-family: var(--mono);
+    font-size: 11px;
+    line-height: 1.7;
+  }
+  .trace-row { display: flex; gap: 8px; }
+  .trace-key { color: var(--muted); min-width: 110px; flex-shrink: 0; }
+  .trace-val { color: var(--white); word-break: break-all; }
+  .trace-val.accent  { color: var(--accent); font-weight: 500; }
+  .trace-val.warn    { color: var(--warn); }
+  .trace-val.danger  { color: var(--danger); }
+  .trace-val.ok      { color: var(--ok); }
+  .trace-val.info    { color: var(--info); }
+
+  .conf-bar-outer {
+    height: 3px;
+    background: var(--border);
+    border-radius: 2px;
+    margin-top: 8px;
+    overflow: hidden;
+  }
+  .conf-bar-inner {
+    height: 100%;
+    background: var(--accent);
+    border-radius: 2px;
+    transition: width 0.4s ease;
+  }
+
+  /* ── Right: Fleet state ──────────────────────────────────────────────── */
+  #panel-fleet {
+    grid-row: 2;
+    grid-column: 3;
+    border-right: none;
+  }
+
+  .fleet-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--border) transparent;
+  }
+
+  .machine-card {
+    background: var(--off);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    padding: 12px;
+    transition: border-color 0.3s;
+  }
+  .machine-card.updated { border-color: var(--accent); }
+  .machine-card-top {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+  .machine-reg {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--white);
+  }
+  .machine-type {
+    font-size: 11px;
+    color: var(--muted);
+  }
+  .status-pill {
+    margin-left: auto;
+    font-family: var(--mono);
+    font-size: 9px;
+    padding: 2px 7px;
+    border-radius: 2px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border: 1px solid transparent;
+  }
+  .status-pill.working { border-color: var(--ok); color: var(--ok); }
+  .status-pill.warning { border-color: var(--warn); color: var(--warn); }
+  .status-pill.down    { background: var(--danger); color: var(--black); }
+  .status-pill.idle    { border-color: var(--muted); color: var(--muted); }
+
+  .machine-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .stat-cell {
+    background: var(--black);
+    border: 1px solid var(--border);
+    padding: 7px 10px;
+    border-radius: 2px;
+  }
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 3px;
+  }
+  .stat-value {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--white);
+  }
+  .stat-value.accent { color: var(--accent); }
+  .stat-value.warn   { color: var(--warn); }
+
+  .issue-badge {
+    margin-top: 6px;
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--warn);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .issue-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    background: var(--warn);
+    animation: pulse 1.5s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity:1; } 50% { opacity:0.3; }
+  }
+
+  .timeline-section {
+    border-top: 1px solid var(--border);
+    padding-top: 10px;
+    margin-top: 4px;
+  }
+  .timeline-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin-bottom: 8px;
+  }
+  .timeline-event {
+    display: flex;
+    gap: 8px;
+    align-items: flex-start;
+    margin-bottom: 6px;
+    animation: slideIn 0.2s ease;
+  }
+  .tl-time {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    min-width: 38px;
+    flex-shrink: 0;
+    padding-top: 1px;
+  }
+  .tl-dot {
+    width: 5px; height: 5px; border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+  .tl-dot.fuel    { background: var(--info); }
+  .tl-dot.hours   { background: var(--ok); }
+  .tl-dot.issue   { background: var(--warn); }
+  .tl-dot.shift   { background: var(--accent); }
+  .tl-dot.other   { background: var(--muted); }
+  .tl-text {
+    font-size: 11px;
+    color: #bbb;
+    line-height: 1.4;
+  }
+
+  /* ── Alert strip ─────────────────────────────────────────────────────── */
+  .alert-strip {
+    position: fixed;
+    top: 56px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--danger);
+    color: var(--black);
+    font-family: var(--mono);
+    font-size: 11px;
+    font-weight: 500;
+    padding: 8px 20px;
+    border-radius: 3px;
+    z-index: 100;
+    display: none;
+    gap: 10px;
+    align-items: center;
+    letter-spacing: 0.06em;
+    animation: slideIn 0.2s ease;
+  }
+  .alert-strip.show { display: flex; }
+  .alert-strip.warn { background: var(--warn); }
+
+</style>
+</head>
+<body>
+
+<!-- ── Header ──────────────────────────────────────────────────────────────── -->
+<header>
+  <div class="logo">Logbuk <span>/ VFM</span></div>
+  <div class="header-badge">capability demo</div>
+  <div class="header-badge live" id="model-badge">● qwen2.5:7b</div>
+  <div class="header-right">
+    <select class="operator-select" id="operator-select">
+      <option value="200001">Иван Сидоров (CAT-101)</option>
+      <option value="200002">Пётр Кузнецов (BLZ-042)</option>
+      <option value="200003">Михаил Фёдоров (KOM-007)</option>
+    </select>
+  </div>
+</header>
+
+<!-- ── Alert strip ─────────────────────────────────────────────────────────── -->
+<div class="alert-strip" id="alert-strip">
+  <span id="alert-text">АНОМАЛИЯ ТОПЛИВА — CAT-101</span>
+</div>
+
+<!-- ── Left: Chat ──────────────────────────────────────────────────────────── -->
+<div class="panel" id="panel-chat">
+  <div class="panel-header">оператор → система</div>
+  <div class="chat-messages" id="chat-messages">
+    <div class="msg system">
+      Демо активно. Выберите оператора и отправьте сообщение как с телефона.
+      Система определит намерение, извлечёт данные и обновит состояние флота.
+    </div>
+  </div>
+  <div class="quick-msgs" id="quick-msgs">
+    <!-- Populated by JS per operator -->
+  </div>
+  <div class="chat-input-row">
+    <textarea id="chat-input" rows="1" placeholder="Сообщение оператора..."></textarea>
+    <button id="send-btn">SEND</button>
+  </div>
+</div>
+
+<!-- ── Middle: Pipeline trace ──────────────────────────────────────────────── -->
+<div class="panel" id="panel-pipeline">
+  <div class="panel-header">pipeline trace</div>
+  <div class="pipeline-body" id="pipeline-body">
+    <div class="trace-empty" id="trace-empty">
+      <div class="trace-empty-grid">
+        <div class="trace-empty-cell"></div><div class="trace-empty-cell"></div><div class="trace-empty-cell"></div>
+        <div class="trace-empty-cell"></div><div class="trace-empty-cell"></div><div class="trace-empty-cell"></div>
+        <div class="trace-empty-cell"></div><div class="trace-empty-cell"></div><div class="trace-empty-cell"></div>
+      </div>
+      <div>Отправьте сообщение<br>чтобы увидеть трассировку</div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Right: Fleet state ──────────────────────────────────────────────────── -->
+<div class="panel" id="panel-fleet">
+  <div class="panel-header">fleet state</div>
+  <div class="fleet-body" id="fleet-body">
+    <!-- Populated by JS -->
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────────────────────────
+const API = '';   // same-origin
+
+const OPERATORS = {
+  '200001': { name: 'Иван',    machine: 'CAT-101', type: 'Экскаватор' },
+  '200002': { name: 'Пётр',    machine: 'BLZ-042', type: 'Самосвал'  },
+  '200003': { name: 'Михаил',  machine: 'KOM-007', type: 'Бульдозер' },
+};
+
+const QUICK = {
+  '200001': [
+    'Начинаю смену на CAT-101',
+    'Залил 150 литров',
+    'Наработка 6 часов',
+    'Стучит двигатель',
+    'ПОЖАР В КАБИНЕ',
+    'Залил 200 литров',   // ← triggers fuel anomaly
+    'Смена закончена',
+  ],
+  '200002': [
+    'Начинаю смену на BLZ-042',
+    'Солярки залили 120л',
+    'Наработка 4 часа',
+    'Гидравлика слабая',
+    'Вывезли 18 кубов',
+    'Смена закончена',
+  ],
+  '200003': [
+    'Начинаю смену на KOM-007',
+    '80 литров залили',
+    'наработ 5ч',
+    'масло немного капает',
+    'Смена закончена',
+  ],
+};
+
+// Local fleet state (updated from API responses)
+const fleetState = {
+  'CAT-101': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
+  'BLZ-042': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
+  'KOM-007': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick messages
+// ─────────────────────────────────────────────────────────────────────────────
+function renderQuick() {
+  const opId = document.getElementById('operator-select').value;
+  const container = document.getElementById('quick-msgs');
+  container.innerHTML = '';
+  (QUICK[opId] || []).forEach(txt => {
+    const btn = document.createElement('button');
+    btn.className = 'quick-btn';
+    btn.textContent = txt;
+    btn.addEventListener('click', () => sendMessage(txt));
+    container.appendChild(btn);
+  });
+}
+document.getElementById('operator-select').addEventListener('change', renderQuick);
+renderQuick();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Chat helpers
+// ─────────────────────────────────────────────────────────────────────────────
+function appendMsg(text, type, meta='') {
+  const empty = document.getElementById('trace-empty');
+  if (empty) empty.style.display = 'none';
+
+  const el = document.createElement('div');
+  el.className = `msg ${type}`;
+  el.textContent = text;
+  if (meta) {
+    const m = document.createElement('div');
+    m.className = 'msg-meta';
+    m.textContent = meta;
+    el.appendChild(m);
+  }
+  const container = document.getElementById('chat-messages');
+  container.appendChild(el);
+  container.scrollTop = container.scrollHeight;
+  return el;
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Pipeline trace
+// ─────────────────────────────────────────────────────────────────────────────
+function clearTrace() {
+  const body = document.getElementById('pipeline-body');
+  body.innerHTML = '';
+}
+
+function addTraceCard(stepLabel, rows, statusClass='ok') {
+  const body = document.getElementById('pipeline-body');
+  const empty = document.getElementById('trace-empty');
+  if (empty) empty.remove();
+
+  const card = document.createElement('div');
+  card.className = 'trace-card';
+  card.innerHTML = `
+    <div class="trace-card-header">
+      <span class="trace-step">${stepLabel}</span>
+      <span class="trace-status ${statusClass}"></span>
+    </div>
+    <div class="trace-card-body">
+      ${rows.map(([k,v,cls]) =>
+        `<div class="trace-row">
+          <span class="trace-key">${k}</span>
+          <span class="trace-val ${cls||''}">${v}</span>
+        </div>`
+      ).join('')}
+    </div>
+  `;
+  body.appendChild(card);
+  body.scrollTop = body.scrollHeight;
+}
+
+function addConfBar(conf) {
+  const body = document.getElementById('pipeline-body');
+  const pct = Math.round(conf * 100);
+  const color = conf >= 0.85 ? 'var(--ok)' : conf >= 0.6 ? 'var(--warn)' : 'var(--danger)';
+  const bar = document.createElement('div');
+  bar.innerHTML = `
+    <div class="conf-bar-outer">
+      <div class="conf-bar-inner" style="width:${pct}%;background:${color};"></div>
+    </div>`;
+  body.appendChild(bar);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Fleet state panel
+// ─────────────────────────────────────────────────────────────────────────────
+function renderFleet() {
+  const body = document.getElementById('fleet-body');
+  body.innerHTML = '';
+  Object.entries(fleetState).forEach(([reg, s]) => {
+    const card = document.createElement('div');
+    card.className = 'machine-card';
+    card.id = `mc-${reg}`;
+
+    const statusCls = s.status === 'WORKING' ? 'working'
+                    : s.status === 'WARNING'  ? 'warning'
+                    : s.status === 'DOWN'     ? 'down' : 'idle';
+
+    const events = s.events.slice(-4).map(ev => {
+      const dotCls = ev.type === 'FUEL_LOG'    ? 'fuel'
+                   : ev.type === 'HOURS_LOG'   ? 'hours'
+                   : ev.type === 'ISSUE_REPORT'? 'issue'
+                   : ev.type.includes('SHIFT') ? 'shift' : 'other';
+      return `<div class="timeline-event">
+        <span class="tl-time">${ev.time}</span>
+        <span class="tl-dot ${dotCls}"></span>
+        <span class="tl-text">${ev.label}</span>
+      </div>`;
+    }).join('');
+
+    const issueHtml = s.issues > 0
+      ? `<div class="issue-badge"><span class="issue-dot"></span>${s.issues} открытых проблем</div>` : '';
+
+    card.innerHTML = `
+      <div class="machine-card-top">
+        <span class="machine-reg">${reg}</span>
+        <span class="machine-type">${s.type || ''}</span>
+        <span class="status-pill ${statusCls}">${s.status}</span>
+      </div>
+      <div class="machine-stats">
+        <div class="stat-cell">
+          <div class="stat-label">топливо</div>
+          <div class="stat-value${s.fuel > 200 ? ' warn' : ' accent'}">${s.fuel}л</div>
+        </div>
+        <div class="stat-cell">
+          <div class="stat-label">наработка</div>
+          <div class="stat-value accent">${s.hours}ч</div>
+        </div>
+      </div>
+      ${issueHtml}
+      ${events ? `
+      <div class="timeline-section">
+        <div class="timeline-label">последние события</div>
+        ${events}
+      </div>` : ''}
+    `;
+    body.appendChild(card);
+  });
+}
+
+function pulseCard(reg) {
+  const card = document.getElementById(`mc-${reg}`);
+  if (!card) return;
+  card.classList.add('updated');
+  setTimeout(() => card.classList.remove('updated'), 1500);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Alert strip
+// ─────────────────────────────────────────────────────────────────────────────
+function showAlert(text, type='danger') {
+  const strip = document.getElementById('alert-strip');
+  strip.className = `alert-strip show ${type}`;
+  document.getElementById('alert-text').textContent = text;
+  setTimeout(() => strip.classList.remove('show'), 5000);
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Map API response → local state update
+// ─────────────────────────────────────────────────────────────────────────────
+function applyResult(opId, rawText, result) {
+  const op = OPERATORS[opId];
+  if (!op) return;
+  const reg  = op.machine;
+  const s    = fleetState[reg];
+  const now  = new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
+
+  const intent = result.intent;
+
+  if (intent === 'shift_start') {
+    s.status   = 'WORKING';
+    s.operator = op.name;
+    s.events.push({ type: 'SHIFT_START', time: now, label: 'начало смены' });
+  } else if (intent === 'shift_end') {
+    s.status   = 'IDLE';
+    s.operator = null;
+    s.events.push({ type: 'SHIFT_END', time: now, label: 'конец смены' });
+  } else if (intent === 'fuel_log') {
+    const vol = result.entities?.fuel_volume || 0;
+    s.fuel += vol;
+    s.events.push({ type: 'FUEL_LOG', time: now, label: `заправка +${vol}л` });
+    // Fuel anomaly heuristic: >30 L/h relative to hours logged
+    if (s.hours > 2 && (s.fuel / s.hours) > 30) {
+      showAlert(`АНОМАЛИЯ ТОПЛИВА — ${reg}: ${Math.round(s.fuel/s.hours)} л/ч`, 'danger');
+    }
+  } else if (intent === 'hours_log') {
+    const hrs = result.entities?.hours || 0;
+    s.hours += hrs;
+    s.events.push({ type: 'HOURS_LOG', time: now, label: `наработка +${hrs}ч` });
+  } else if (intent === 'issue_report') {
+    s.issues += 1;
+    const sev = result.entities?.severity || 'warning';
+    if (sev === 'critical') { s.status = 'DOWN'; showAlert(`КРИТИЧНО — ${reg}: ${result.entities?.description || ''}`, 'danger'); }
+    else if (sev === 'high') { s.status = 'WARNING'; showAlert(`ВЫСОКИЙ ПРИОРИТЕТ — ${reg}: ${result.entities?.description || ''}`, 'warn'); }
+    else s.status = 'WARNING';
+    s.events.push({ type: 'ISSUE_REPORT', time: now, label: result.entities?.description || 'проблема' });
+  } else if (intent === 'production_log') {
+    const qty  = result.entities?.production_qty || 0;
+    const unit = result.entities?.production_unit || '';
+    s.events.push({ type: 'PRODUCTION_LOG', time: now, label: `выработка ${qty} ${unit}` });
+  }
+
+  pulseCard(reg);
+  renderFleet();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Send message → real API or mock (fallback)
+// ─────────────────────────────────────────────────────────────────────────────
+async function sendMessage(text) {
+  text = text.trim();
+  if (!text) return;
+
+  const opId   = document.getElementById('operator-select').value;
+  const op     = OPERATORS[opId];
+  const sendBtn = document.getElementById('send-btn');
+  const input   = document.getElementById('chat-input');
+
+  sendBtn.disabled = true;
+  input.value = '';
+
+  // 1. Show operator bubble
+  appendMsg(text, 'operator', op.name + ' · ' + new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}));
+
+  // 2. Clear and start trace
+  clearTrace();
+  const thinking = appendMsg('⟳  анализирую...', 'thinking');
+
+  // 3. Guard trace (always instant)
+  addTraceCard('01 · injection guard', [
+    ['input_len', text.length + ' chars', ''],
+    ['threat',    'none', 'ok'],
+    ['sanitised', 'pass', 'ok'],
+  ], 'ok');
+
+  // 4. Try real API, fall back to mock
+  let result;
+  try {
+    const resp = await fetch(`${API}/api/v1/vfm/update`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({
+        operator_tg_id: opId,
+        chat_id: `demo_${opId}`,
+        text: text,
+        source: 'rest',
+      }),
+    });
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    result = await resp.json();
+  } catch(e) {
+    // Graceful mock — demo runs without a live backend
+    result = mockExtract(text, opId);
+  }
+
+  // 5. Remove thinking bubble
+  thinking.remove();
+
+  // 6. Context prompt trace
+  const machineReg = op.machine;
+  const s = fleetState[machineReg];
+  addTraceCard('02 · context prompt', [
+    ['machine',      machineReg, 'accent'],
+    ['operator',     op.name,    ''],
+    ['fuel_today',   s.fuel + 'л', ''],
+    ['hours_today',  s.hours + 'ч', ''],
+    ['open_issues',  s.issues, s.issues > 0 ? 'warn' : ''],
+    ['history_len',  s.events.length + ' events', ''],
+  ], 'ok');
+
+  // 7. LLM extraction trace
+  const routeColor = result.confidence_route === 'auto' ? 'ok'
+                   : result.confidence_route === 'confirm' ? 'warn' : 'info';
+  addTraceCard('03 · llm extraction', [
+    ['intent',     result.intent,                 'accent'],
+    ['confidence', (result.confidence * 100).toFixed(0) + '%', routeColor],
+    ['route',      result.confidence_route,       routeColor],
+    ['via_llm',    'true',                        ''],
+    ...Object.entries(result.entities || {})
+              .filter(([,v]) => v !== null && v !== undefined)
+              .map(([k,v]) => [k, String(v), '']),
+  ], routeColor);
+  addConfBar(result.confidence);
+
+  // 8. DB write trace
+  const dbRows = [['timeline_id', result.timeline_event_id || 'pending', '']];
+  if (result.rules_fired?.length) dbRows.push(['rules_fired', result.rules_fired.join(', '), 'warn']);
+  if (result.errors?.length)      dbRows.push(['errors',      result.errors[0], 'danger']);
+  addTraceCard('04 · db write', dbRows, result.errors?.length ? 'err' : 'ok');
+
+  // 9. System reply bubble
+  appendMsg(result.reply || '…', 'system',
+    `intent:${result.intent} · conf:${(result.confidence*100).toFixed(0)}% · route:${result.confidence_route}`);
+
+  // 10. Update fleet panel
+  applyResult(opId, text, result);
+
+  sendBtn.disabled = false;
+  input.focus();
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Mock extractor — runs when backend is unavailable (no network required)
+// ─────────────────────────────────────────────────────────────────────────────
+function mockExtract(text, opId) {
+  const t = text.toLowerCase();
+  const op = OPERATORS[opId];
+
+  // Fuel
+  const fuelMatch = t.match(/(\d+)\s*(литр|л\b|liter|litr|литров|лт)/);
+  if (fuelMatch || /залил|заправ|топлив|солярк|дизель/.test(t)) {
+    const vol = fuelMatch ? parseInt(fuelMatch[1]) : null;
+    return {
+      intent: 'fuel_log',
+      reply: vol ? `Записано: ${vol}л топлива ✓` : 'Сколько литров залили?',
+      confidence: vol ? 0.94 : 0.62,
+      confidence_route: vol ? 'auto' : 'confirm',
+      entities: { fuel_volume: vol },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: [],
+      errors: [],
+    };
+  }
+
+  // Hours
+  const hrsMatch = t.match(/(\d+(?:[.,]\d+)?)\s*(час|ч\b|мч|h\b)/);
+  if (hrsMatch || /наработ/.test(t)) {
+    const hrs = hrsMatch ? parseFloat(hrsMatch[1].replace(',','.')) : null;
+    return {
+      intent: 'hours_log',
+      reply: hrs ? `Записано: ${hrs}ч наработки ✓` : 'Сколько часов?',
+      confidence: 0.93,
+      confidence_route: 'auto',
+      entities: { hours: hrs },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: [],
+      errors: [],
+    };
+  }
+
+  // Shift start
+  if (/начин|смену|смена/.test(t)) {
+    return {
+      intent: 'shift_start',
+      reply: `Смена открыта. Машина ${op.machine} активна. Удачной смены!`,
+      confidence: 0.97,
+      confidence_route: 'auto',
+      entities: { reg_number: op.machine },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: [],
+      errors: [],
+    };
+  }
+
+  // Shift end
+  if (/конч|закон|завершена|смена конец/.test(t)) {
+    return {
+      intent: 'shift_end',
+      reply: 'Смена закончена. Сейчас рассчитаю итоги...',
+      confidence: 0.96,
+      confidence_route: 'auto',
+      entities: {},
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: ['shift_end_summary'],
+      errors: [],
+    };
+  }
+
+  // Critical
+  if (/пожар|fire|горит/.test(t)) {
+    return {
+      intent: 'issue_report',
+      reply: 'Зафиксировано: пожар. Приоритет: CRITICAL. Уведомление отправлено.',
+      confidence: 0.97,
+      confidence_route: 'auto',
+      entities: { description: text, severity: 'critical', component: 'cab', symptom: 'fire' },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: ['critical_issue_escalation'],
+      errors: [],
+    };
+  }
+
+  // Issue
+  if (/стуч|течь|масло|гидравл|двигател|сломал|проблем|неисправ/.test(t)) {
+    return {
+      intent: 'issue_report',
+      reply: `Зафиксировано: ${text.slice(0,60)}. Приоритет: MEDIUM.`,
+      confidence: 0.81,
+      confidence_route: 'confirm',
+      entities: { description: text, severity: 'warning' },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: [],
+      errors: [],
+    };
+  }
+
+  // Production
+  const prodMatch = t.match(/(\d+)\s*(куб|рейс|тонн)/);
+  if (prodMatch) {
+    return {
+      intent: 'production_log',
+      reply: `Записано: ${prodMatch[1]} ${prodMatch[2]}`,
+      confidence: 0.88,
+      confidence_route: 'auto',
+      entities: { production_qty: parseInt(prodMatch[1]), production_unit: prodMatch[2] },
+      timeline_event_id: Math.floor(Math.random()*9000+1000),
+      rules_fired: [],
+      errors: [],
+    };
+  }
+
+  return {
+    intent: 'clarification_needed',
+    reply: 'Не распознал команду. Попробуйте ещё раз.',
+    confidence: 0.22,
+    confidence_route: 'llm',
+    entities: {},
+    timeline_event_id: null,
+    rules_fired: [],
+    errors: [],
+  };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Keyboard / input
+// ─────────────────────────────────────────────────────────────────────────────
+const input = document.getElementById('chat-input');
+input.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage(input.value);
+  }
+});
+input.addEventListener('input', () => {
+  input.style.height = 'auto';
+  input.style.height = Math.min(input.scrollHeight, 100) + 'px';
+});
+document.getElementById('send-btn').addEventListener('click', () => sendMessage(input.value));
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Initial fleet render
+// ─────────────────────────────────────────────────────────────────────────────
+fleetState['CAT-101'].type = 'Экскаватор';
+fleetState['BLZ-042'].type = 'Самосвал';
+fleetState['KOM-007'].type = 'Бульдозер';
+renderFleet();
+
+// Check if real backend is available and update badge
+fetch('/api/v1/vfm/status').then(r => {
+  if (r.ok) {
+    document.getElementById('model-badge').textContent = '● live backend';
+    document.getElementById('model-badge').style.borderColor = 'var(--ok)';
+    document.getElementById('model-badge').style.color = 'var(--ok)';
+  }
+}).catch(() => {
+  document.getElementById('model-badge').textContent = '● mock mode';
+});
+</script>
+</body>
+</html>

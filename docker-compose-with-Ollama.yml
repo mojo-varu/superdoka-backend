@@ -1,0 +1,75 @@
+version: '3.8'
+
+services:
+  db:
+    image: postgres:15-alpine
+    container_name: logbuk_db
+    environment:
+      POSTGRES_PASSWORD: logbuk123
+      POSTGRES_DB: logbuk_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - logbuk_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d logbuk_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: logbuk_redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - logbuk_redis_data:/data
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: logbuk_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - logbuk_ollama_data:/root/.ollama
+    # Remove the deploy block entirely if you have no NVIDIA GPU
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  api:
+    build: .
+    container_name: logbuk_api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./app:/app/app
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./static:/app/static
+    environment:
+      DATABASE_URL: postgresql+asyncpg://postgres:logbuk123@db:5432/logbuk_db
+      REDIS_URL: redis://redis:6379/0
+      LLM_PROVIDER: ollama
+      LLM_BASE_URL: http://host.docker.internal:11434
+      LLM_MODEL: qwen2.5:7b-instruct
+      LLM_TIMEOUT_SECONDS: "20"
+      LLM_API_KEY: ""
+      RULES_PATH: app/rules/fleet_rules.yaml
+      BOT_USERNAME: logbuk_bot
+      PYTHONPATH: /app
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"]
+
+volumes:
+  logbuk_postgres_data:
+  logbuk_redis_data:
+  logbuk_ollama_data:

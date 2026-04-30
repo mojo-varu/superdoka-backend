@@ -1,0 +1,125 @@
+# app/rules/fleet_rules.yaml
+#
+# Edit this file to change business rules WITHOUT redeploying.
+# Rules are evaluated in order. All matching rules fire (not first-match).
+#
+# Condition operators: eq, ne, gt, lt, gte, lte, in, contains, is_null, not_null
+# Action types: reply_operator, alert_owner, alert_mechanic, create_incident,
+#               set_machine_status, nudge_operator
+
+rules:
+
+  # ── Rule 1: Fuel anomaly detector ──────────────────────────────────────
+  # If fuel added is disproportionately large vs hours worked today,
+  # flag for the owner. Catches theft and leaks within the shift.
+  - id: fuel_anomaly
+    description: "Fuel added is unusually high relative to hours worked"
+    enabled: true
+    when:
+      intent: fuel_log
+      conditions:
+        - field: entities.fuel_volume
+          op: gt
+          value: 0
+        - field: session.hours_logged_today
+          op: gt
+          value: 2                    # only meaningful after 2+ hours worked
+        - field: session.fuel_ratio   # fuel_volume / hours_worked — computed
+          op: gt
+          value: 30                   # >30 L/h is anomalous for most machines
+    then:
+      - action: alert_owner
+        priority: high
+        message: |
+          ⚠️ Аномалия топлива: {machine_reg} добавил {fuel_volume}л при {hours_today}ч работы.
+          Расход {fuel_ratio:.1f}л/ч (норма < 30л/ч). Проверьте утечку или слив.
+      - action: create_incident
+        severity: warning
+        description: "Fuel anomaly detected — ratio {fuel_ratio:.1f} L/h"
+
+  # ── Rule 2: Critical issue immediate escalation ─────────────────────────
+  # Any CRITICAL severity issue → instant alert to owner + mechanic.
+  - id: critical_issue_escalation
+    description: "Critical severity issue reported — immediate escalation"
+    enabled: true
+    when:
+      intent: issue_report
+      conditions:
+        - field: severity
+          op: in
+          value: [critical, high]
+    then:
+      - action: alert_owner
+        priority: critical
+        message: |
+          🔴 КРИТИЧНО: {machine_reg}
+          Оператор {operator_name}: {issue_description}
+          Машина переведена в статус DOWN.
+      - action: alert_mechanic
+        priority: critical
+        message: |
+          🔧 Срочно: {machine_reg} — {issue_description}
+          Оператор: {operator_name}. Требуется немедленный осмотр.
+      - action: set_machine_status
+        status: DOWN
+
+  # ── Rule 3: Repeated faults on same machine ─────────────────────────────
+  # 3+ open issues on the same machine → escalate to owner.
+  - id: repeated_faults
+    description: "Machine has accumulated multiple open issues this shift"
+    enabled: true
+    when:
+      intent: issue_report
+      conditions:
+        - field: session.open_issue_count
+          op: gte
+          value: 3
+    then:
+      - action: alert_owner
+        priority: high
+        message: |
+          ⚠️ Машина {machine_reg} имеет {open_issue_count} открытых проблем.
+          Последняя: {issue_description}
+          Рекомендуется плановое ТО.
+
+  # ── Rule 4: No check-in for extended period ─────────────────────────────
+  # Operator has been on shift 4+ hours with no messages → nudge them.
+  # (Fired by the Watcher, not by message events)
+  - id: no_checkin_nudge
+    description: "Operator on shift with no activity for configured interval"
+    enabled: true
+    trigger: watcher                  # fired by Watcher, not EventProcessor
+    when:
+      conditions:
+        - field: session.minutes_on_shift
+          op: gte
+          value: 240                  # 4 hours — matches owner_settings.checkin_interval_hours
+        - field: session.checkin_count
+          op: lt
+          value: 1                    # no messages sent yet this check period
+    then:
+      - action: nudge_operator
+        priority: normal
+        message: |
+          Иван, прошло 4 часа. Как дела на {machine_reg}?
+          Всё в норме? Сколько топлива осталось?
+
+  # ── Rule 5: Shift end reconciliation ───────────────────────────────────
+  # Fired when a shift ends. Cross-checks fuel vs hours.
+  # Sends shift summary to owner.
+  - id: shift_end_summary
+    description: "Generate and send shift summary when shift closes"
+    enabled: true
+    when:
+      intent: shift_end
+      conditions: []                  # fires on every shift end
+    then:
+      - action: alert_owner
+        priority: normal
+        message: |
+          📋 Итоги смены — {machine_reg}:
+          Оператор: {operator_name}
+          Наработка: {hours_logged}ч
+          Топливо: {fuel_logged}л
+          Обращений: {checkin_count}
+          Проблем: {open_issue_count}
