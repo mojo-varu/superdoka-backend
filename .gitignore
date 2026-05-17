@@ -6,6 +6,7 @@
 app/models/
 *.onnx
 models_intent_ner_onnx.zip
+app/distilxlmr_ner_m1
 
 # Dev database
 vfm_dev.db

@@ -1,0 +1,26 @@
+# Production overrides — VPS deployment
+# Usage: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+
+services:
+  db:
+    restart: always
+    ports: []  # Remove external exposure — internal network only
+
+  redis:
+    restart: always
+    ports: []  # Remove external exposure — internal network only
+
+  api:
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"  # Localhost only — Caddy proxies from outside
+    volumes:
+      # Remove hot-reload mounts — code is baked into image on VPS
+      - ./app/models:/app/models
+      - ./static:/app/static
+    command: >
+      sh -c "env -u PYTHONPATH alembic upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000
+             --workers 2 --log-level info"
+    env_file:
+      - .env.prod

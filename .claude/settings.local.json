@@ -39,7 +39,20 @@
       "Bash(poetry run *)",
       "Bash(poetry install *)",
       "Bash(chmod +x /Users/varu/Documents/PyLife/logbuk-backend/setup.sh)",
-      "Bash(curl *)"
+      "Bash(curl *)",
+      "Bash(poetry env *)",
+      "Bash(DATABASE_URL=sqlite+aiosqlite:///./vfm_dev.db poetry run *)",
+      "Bash(poetry add *)",
+      "Bash(echo \"PID: $!\")",
+      "Bash(nc -z localhost 5432)",
+      "Bash(PGPASSWORD=logbuk123 psql *)",
+      "Bash(DATABASE_URL=postgresql+asyncpg://postgres:logbuk123@localhost:5432/logbuk_db poetry run *)",
+      "Bash(nc -z localhost 8000)",
+      "Bash(awk '{print $NF}')",
+      "Bash(awk -F: '{print $1}')",
+      "Bash(GIT_SSH_COMMAND=\"ssh -v\" git push -u origin main)",
+      "Bash(ssh *)",
+      "Bash(echo \"Exit: $?\")"
     ]
   }
 }
