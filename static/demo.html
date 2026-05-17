@@ -3,6 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-store, no-cache, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
 <title>Logbuk — Fleet Intelligence Demo</title>
 <style>
   @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500;600&display=swap');
@@ -489,6 +491,63 @@
   .alert-strip.show { display: flex; }
   .alert-strip.warn { background: var(--warn); }
 
+  /* ── Machine card: clickable ─────────────────────────────────────────────── */
+  .machine-card.clickable { cursor: pointer; }
+  .machine-card.clickable:hover { border-color: var(--accent); }
+
+  /* ── Detail view ─────────────────────────────────────────────────────────── */
+  .detail-back {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    margin-bottom: 10px;
+    display: block;
+    width: 100%;
+    text-align: left;
+    transition: all 0.15s;
+  }
+  .detail-back:hover { border-color: var(--accent); color: var(--accent); }
+
+  .issues-header {
+    font-family: var(--mono);
+    font-size: 9px;
+    letter-spacing: 0.12em;
+    color: var(--muted);
+    text-transform: uppercase;
+    margin: 10px 0 6px;
+  }
+  .issue-row {
+    background: var(--off);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    padding: 8px 10px;
+    margin-bottom: 6px;
+    animation: slideIn 0.2s ease;
+  }
+  .issue-row-desc {
+    font-size: 12px;
+    color: var(--white);
+    margin-bottom: 4px;
+    line-height: 1.4;
+  }
+  .issue-row-meta {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+  .issue-priority { color: var(--warn); }
+  .issue-priority.critical { color: var(--danger); }
+  .issue-priority.low { color: var(--muted); }
+
 </style>
 </head>
 <body>
@@ -496,20 +555,20 @@
 <!-- ── Header ──────────────────────────────────────────────────────────────── -->
 <header>
   <div class="logo">Logbuk <span>/ VFM</span></div>
-  <div class="header-badge">capability demo</div>
+  <div class="header-badge">live sandbox</div>
   <div class="header-badge live" id="model-badge">● qwen2.5:7b</div>
   <div class="header-right">
     <select class="operator-select" id="operator-select">
-      <option value="200001">Иван Сидоров (CAT-101)</option>
-      <option value="200002">Пётр Кузнецов (BLZ-042)</option>
-      <option value="200003">Михаил Фёдоров (KOM-007)</option>
+      <option value="2001">Иван Сидоров (А771МР77)</option>
+      <option value="2002">Пётр Кузнецов (В542КХ77)</option>
+      <option value="2003">Михаил Фёдоров (К007МР50)</option>
     </select>
   </div>
 </header>
 
 <!-- ── Alert strip ─────────────────────────────────────────────────────────── -->
 <div class="alert-strip" id="alert-strip">
-  <span id="alert-text">АНОМАЛИЯ ТОПЛИВА — CAT-101</span>
+  <span id="alert-text">АНОМАЛИЯ ТОПЛИВА — А771МР77</span>
 </div>
 
 <!-- ── Left: Chat ──────────────────────────────────────────────────────────── -->
@@ -555,58 +614,73 @@
 
 <script>
 // ─────────────────────────────────────────────────────────────────────────────
-// State
+// State — loaded from backend, no hardcoded data
 // ─────────────────────────────────────────────────────────────────────────────
 const API = '';   // same-origin
 
-const OPERATORS = {
-  '200001': { name: 'Иван',    machine: 'CAT-101', type: 'Экскаватор' },
-  '200002': { name: 'Пётр',    machine: 'BLZ-042', type: 'Самосвал'  },
-  '200003': { name: 'Михаил',  machine: 'KOM-007', type: 'Бульдозер' },
-};
+let operators   = {};    // { "2001": { name, machine, machine_alias, type } }
+let lastFleet   = null;  // latest /fleet/intelligence response, used for context trace
+let detailMode  = false;
 
-const QUICK = {
-  '200001': [
-    'Начинаю смену на CAT-101',
+// ─────────────────────────────────────────────────────────────────────────────
+// Init — load operators from backend, populate select
+// ─────────────────────────────────────────────────────────────────────────────
+async function initSandbox() {
+  try {
+    const resp = await fetch(`${API}/api/v1/vfm/sandbox/operators`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    const data = await resp.json();
+
+    operators = {};
+    const sel = document.getElementById('operator-select');
+    sel.innerHTML = '';
+
+    (data.operators || []).forEach(op => {
+      const id = String(op.platform_user_id);
+      const label = op.machine_alias || op.machine_reg_number || '';
+      operators[id] = {
+        name:          op.name,
+        machine:       op.machine_reg_number || '',
+        machine_alias: op.machine_alias || op.machine_reg_number || '',
+        type:          op.machine_type || '',
+      };
+      const opt = document.createElement('option');
+      opt.value = id;
+      opt.textContent = label ? `${op.name} (${label})` : op.name;
+      sel.appendChild(opt);
+    });
+
+    renderQuick();
+  } catch(e) {
+    const sel = document.getElementById('operator-select');
+    sel.innerHTML = '<option value="">бэкенд недоступен</option>';
+    appendMsg('Не удалось загрузить операторов с бэкенда. Убедитесь, что сервер запущен.', 'system');
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Quick messages — generic NLP showcase, machine name injected from live data
+// ─────────────────────────────────────────────────────────────────────────────
+function renderQuick() {
+  const opId = document.getElementById('operator-select').value;
+  const op   = operators[opId];
+  const container = document.getElementById('quick-msgs');
+  container.innerHTML = '';
+  if (!op) return;
+
+  const machine = op.machine || op.machine_alias || 'машину';
+  const msgs = [
+    `Начинаю смену на ${machine}`,
     'Залил 150 литров',
     'Наработка 6 часов',
     'Стучит двигатель',
     'ПОЖАР В КАБИНЕ',
-    'Залил 200 литров',   // ← triggers fuel anomaly
-    'Смена закончена',
-  ],
-  '200002': [
-    'Начинаю смену на BLZ-042',
-    'Солярки залили 120л',
-    'Наработка 4 часа',
-    'Гидравлика слабая',
+    'Залил 200 литров',
     'Вывезли 18 кубов',
     'Смена закончена',
-  ],
-  '200003': [
-    'Начинаю смену на KOM-007',
-    '80 литров залили',
-    'наработ 5ч',
-    'масло немного капает',
-    'Смена закончена',
-  ],
-};
+  ];
 
-// Local fleet state (updated from API responses)
-const fleetState = {
-  'CAT-101': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
-  'BLZ-042': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
-  'KOM-007': { status: 'IDLE', fuel: 0, hours: 0, issues: 0, operator: null, events: [] },
-};
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Quick messages
-// ─────────────────────────────────────────────────────────────────────────────
-function renderQuick() {
-  const opId = document.getElementById('operator-select').value;
-  const container = document.getElementById('quick-msgs');
-  container.innerHTML = '';
-  (QUICK[opId] || []).forEach(txt => {
+  msgs.forEach(txt => {
     const btn = document.createElement('button');
     btn.className = 'quick-btn';
     btn.textContent = txt;
@@ -615,7 +689,6 @@ function renderQuick() {
   });
 }
 document.getElementById('operator-select').addEventListener('change', renderQuick);
-renderQuick();
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Chat helpers
@@ -684,63 +757,6 @@ function addConfBar(conf) {
   body.appendChild(bar);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Fleet state panel
-// ─────────────────────────────────────────────────────────────────────────────
-function renderFleet() {
-  const body = document.getElementById('fleet-body');
-  body.innerHTML = '';
-  Object.entries(fleetState).forEach(([reg, s]) => {
-    const card = document.createElement('div');
-    card.className = 'machine-card';
-    card.id = `mc-${reg}`;
-
-    const statusCls = s.status === 'WORKING' ? 'working'
-                    : s.status === 'WARNING'  ? 'warning'
-                    : s.status === 'DOWN'     ? 'down' : 'idle';
-
-    const events = s.events.slice(-4).map(ev => {
-      const dotCls = ev.type === 'FUEL_LOG'    ? 'fuel'
-                   : ev.type === 'HOURS_LOG'   ? 'hours'
-                   : ev.type === 'ISSUE_REPORT'? 'issue'
-                   : ev.type.includes('SHIFT') ? 'shift' : 'other';
-      return `<div class="timeline-event">
-        <span class="tl-time">${ev.time}</span>
-        <span class="tl-dot ${dotCls}"></span>
-        <span class="tl-text">${ev.label}</span>
-      </div>`;
-    }).join('');
-
-    const issueHtml = s.issues > 0
-      ? `<div class="issue-badge"><span class="issue-dot"></span>${s.issues} открытых проблем</div>` : '';
-
-    card.innerHTML = `
-      <div class="machine-card-top">
-        <span class="machine-reg">${reg}</span>
-        <span class="machine-type">${s.type || ''}</span>
-        <span class="status-pill ${statusCls}">${s.status}</span>
-      </div>
-      <div class="machine-stats">
-        <div class="stat-cell">
-          <div class="stat-label">топливо</div>
-          <div class="stat-value${s.fuel > 200 ? ' warn' : ' accent'}">${s.fuel}л</div>
-        </div>
-        <div class="stat-cell">
-          <div class="stat-label">наработка</div>
-          <div class="stat-value accent">${s.hours}ч</div>
-        </div>
-      </div>
-      ${issueHtml}
-      ${events ? `
-      <div class="timeline-section">
-        <div class="timeline-label">последние события</div>
-        ${events}
-      </div>` : ''}
-    `;
-    body.appendChild(card);
-  });
-}
-
 function pulseCard(reg) {
   const card = document.getElementById(`mc-${reg}`);
   if (!card) return;
@@ -758,54 +774,6 @@ function showAlert(text, type='danger') {
   setTimeout(() => strip.classList.remove('show'), 5000);
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Map API response → local state update
-// ─────────────────────────────────────────────────────────────────────────────
-function applyResult(opId, rawText, result) {
-  const op = OPERATORS[opId];
-  if (!op) return;
-  const reg  = op.machine;
-  const s    = fleetState[reg];
-  const now  = new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'});
-
-  const intent = result.intent;
-
-  if (intent === 'shift_start') {
-    s.status   = 'WORKING';
-    s.operator = op.name;
-    s.events.push({ type: 'SHIFT_START', time: now, label: 'начало смены' });
-  } else if (intent === 'shift_end') {
-    s.status   = 'IDLE';
-    s.operator = null;
-    s.events.push({ type: 'SHIFT_END', time: now, label: 'конец смены' });
-  } else if (intent === 'fuel_log') {
-    const vol = result.entities?.fuel_volume || 0;
-    s.fuel += vol;
-    s.events.push({ type: 'FUEL_LOG', time: now, label: `заправка +${vol}л` });
-    // Fuel anomaly heuristic: >30 L/h relative to hours logged
-    if (s.hours > 2 && (s.fuel / s.hours) > 30) {
-      showAlert(`АНОМАЛИЯ ТОПЛИВА — ${reg}: ${Math.round(s.fuel/s.hours)} л/ч`, 'danger');
-    }
-  } else if (intent === 'hours_log') {
-    const hrs = result.entities?.hours || 0;
-    s.hours += hrs;
-    s.events.push({ type: 'HOURS_LOG', time: now, label: `наработка +${hrs}ч` });
-  } else if (intent === 'issue_report') {
-    s.issues += 1;
-    const sev = result.entities?.severity || 'warning';
-    if (sev === 'critical') { s.status = 'DOWN'; showAlert(`КРИТИЧНО — ${reg}: ${result.entities?.description || ''}`, 'danger'); }
-    else if (sev === 'high') { s.status = 'WARNING'; showAlert(`ВЫСОКИЙ ПРИОРИТЕТ — ${reg}: ${result.entities?.description || ''}`, 'warn'); }
-    else s.status = 'WARNING';
-    s.events.push({ type: 'ISSUE_REPORT', time: now, label: result.entities?.description || 'проблема' });
-  } else if (intent === 'production_log') {
-    const qty  = result.entities?.production_qty || 0;
-    const unit = result.entities?.production_unit || '';
-    s.events.push({ type: 'PRODUCTION_LOG', time: now, label: `выработка ${qty} ${unit}` });
-  }
-
-  pulseCard(reg);
-  renderFleet();
-}
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Send message → real API or mock (fallback)
@@ -814,215 +782,356 @@ async function sendMessage(text) {
   text = text.trim();
   if (!text) return;
 
-  const opId   = document.getElementById('operator-select').value;
-  const op     = OPERATORS[opId];
+  const opId    = document.getElementById('operator-select').value;
+  const op      = operators[opId];
   const sendBtn = document.getElementById('send-btn');
   const input   = document.getElementById('chat-input');
+
+  if (!op) {
+    appendMsg('Выберите оператора из списка.', 'system');
+    return;
+  }
 
   sendBtn.disabled = true;
   input.value = '';
 
-  // 1. Show operator bubble
+  // 1. Operator bubble
   appendMsg(text, 'operator', op.name + ' · ' + new Date().toLocaleTimeString('ru', {hour:'2-digit', minute:'2-digit'}));
 
-  // 2. Clear and start trace
+  // 2. Clear trace, show thinking
   clearTrace();
   const thinking = appendMsg('⟳  анализирую...', 'thinking');
 
-  // 3. Guard trace (always instant)
+  // 3. Injection guard card (instant — happens in middleware before LLM)
   addTraceCard('01 · injection guard', [
     ['input_len', text.length + ' chars', ''],
     ['threat',    'none', 'ok'],
     ['sanitised', 'pass', 'ok'],
   ], 'ok');
 
-  // 4. Try real API, fall back to mock
+  // 4. Hit the real backend — no mock fallback
   let result;
   try {
     const resp = await fetch(`${API}/api/v1/vfm/update`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({
-        operator_tg_id: opId,
-        chat_id: `demo_${opId}`,
-        text: text,
-        source: 'rest',
+        operator_id: opId,
+        chat_id:     `sandbox_${opId}`,
+        text:        text,
+        source:      'rest',
       }),
     });
     if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
     result = await resp.json();
   } catch(e) {
-    // Graceful mock — demo runs without a live backend
-    result = mockExtract(text, opId);
+    thinking.remove();
+    appendMsg(`Ошибка связи с бэкендом: ${e.message}`, 'system');
+    sendBtn.disabled = false;
+    input.focus();
+    return;
   }
 
-  // 5. Remove thinking bubble
   thinking.remove();
 
-  // 6. Context prompt trace
-  const machineReg = op.machine;
-  const s = fleetState[machineReg];
+  // 5. Context prompt trace — reads live data from last fleet intelligence fetch
+  const machineData = (lastFleet?.machines || []).find(m => m.reg_number === op.machine) || {};
   addTraceCard('02 · context prompt', [
-    ['machine',      machineReg, 'accent'],
+    ['machine',      op.machine_alias || op.machine, 'accent'],
     ['operator',     op.name,    ''],
-    ['fuel_today',   s.fuel + 'л', ''],
-    ['hours_today',  s.hours + 'ч', ''],
-    ['open_issues',  s.issues, s.issues > 0 ? 'warn' : ''],
-    ['history_len',  s.events.length + ' events', ''],
+    ['fuel_today',   (machineData.fuel_today   ?? '—') + 'л', ''],
+    ['hours_today',  (machineData.hours_today  ?? '—') + 'ч', ''],
+    ['open_issues',  machineData.open_issues   ?? '—', (machineData.open_issues ?? 0) > 0 ? 'warn' : ''],
+    ['shift_active', machineData.shift_active  ? 'да' : 'нет', ''],
   ], 'ok');
 
-  // 7. LLM extraction trace
-  const routeColor = result.confidence_route === 'auto' ? 'ok'
+  // 6. LLM extraction trace
+  const routeColor = result.confidence_route === 'auto'    ? 'ok'
                    : result.confidence_route === 'confirm' ? 'warn' : 'info';
   addTraceCard('03 · llm extraction', [
-    ['intent',     result.intent,                 'accent'],
+    ['intent',     result.intent,                              'accent'],
     ['confidence', (result.confidence * 100).toFixed(0) + '%', routeColor],
-    ['route',      result.confidence_route,       routeColor],
-    ['via_llm',    'true',                        ''],
+    ['route',      result.confidence_route,                    routeColor],
     ...Object.entries(result.entities || {})
               .filter(([,v]) => v !== null && v !== undefined)
               .map(([k,v]) => [k, String(v), '']),
   ], routeColor);
   addConfBar(result.confidence);
 
-  // 8. DB write trace
-  const dbRows = [['timeline_id', result.timeline_event_id || 'pending', '']];
-  if (result.rules_fired?.length) dbRows.push(['rules_fired', result.rules_fired.join(', '), 'warn']);
-  if (result.errors?.length)      dbRows.push(['errors',      result.errors[0], 'danger']);
+  // 7. DB write trace
+  const dbRows = [['timeline_id', result.timeline_event_id ?? 'pending', '']];
+  if (result.needs_confirmation)   dbRows.push(['needs_confirm', 'true',                        'warn']);
+  if (result.rules_fired?.length)  dbRows.push(['rules_fired',   result.rules_fired.join(', '), 'warn']);
+  if (result.errors?.length)       dbRows.push(['errors',        result.errors[0],              'danger']);
   addTraceCard('04 · db write', dbRows, result.errors?.length ? 'err' : 'ok');
 
-  // 9. System reply bubble
+  // 8. System reply bubble
   appendMsg(result.reply || '…', 'system',
     `intent:${result.intent} · conf:${(result.confidence*100).toFixed(0)}% · route:${result.confidence_route}`);
 
-  // 10. Update fleet panel
-  applyResult(opId, text, result);
+  // 9. Alert for critical issues
+  if (result.intent === 'issue_report') {
+    const sev = result.entities?.severity || '';
+    if (sev === 'critical') showAlert(`КРИТИЧНО — ${op.machine_alias || op.machine}: ${result.entities?.description || ''}`, 'danger');
+    else if (sev === 'high') showAlert(`ВЫСОКИЙ — ${op.machine_alias || op.machine}: ${result.entities?.description || ''}`, 'warn');
+  }
+
+  // 10. Refresh fleet panel from live backend after write
+  pulseCard(op.machine);
+  setTimeout(fetchFleetIntelligence, 800);
 
   sendBtn.disabled = false;
   input.focus();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Mock extractor — runs when backend is unavailable (no network required)
+// Fleet intelligence — live from /api/v1/vfm/fleet/intelligence
 // ─────────────────────────────────────────────────────────────────────────────
-function mockExtract(text, opId) {
-  const t = text.toLowerCase();
-  const op = OPERATORS[opId];
-
-  // Fuel
-  const fuelMatch = t.match(/(\d+)\s*(литр|л\b|liter|litr|литров|лт)/);
-  if (fuelMatch || /залил|заправ|топлив|солярк|дизель/.test(t)) {
-    const vol = fuelMatch ? parseInt(fuelMatch[1]) : null;
-    return {
-      intent: 'fuel_log',
-      reply: vol ? `Записано: ${vol}л топлива ✓` : 'Сколько литров залили?',
-      confidence: vol ? 0.94 : 0.62,
-      confidence_route: vol ? 'auto' : 'confirm',
-      entities: { fuel_volume: vol },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: [],
-      errors: [],
-    };
+async function fetchFleetIntelligence() {
+  if (detailMode) return;
+  try {
+    const resp = await fetch(`${API}/api/v1/vfm/fleet/intelligence`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    lastFleet = await resp.json();
+    renderIntelligencePanel(lastFleet);
+  } catch (e) {
+    const body = document.getElementById('fleet-body');
+    if (!body.children.length) {
+      body.innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:24px 0;text-align:center">Нет данных от бэкенда</div>';
+    }
   }
-
-  // Hours
-  const hrsMatch = t.match(/(\d+(?:[.,]\d+)?)\s*(час|ч\b|мч|h\b)/);
-  if (hrsMatch || /наработ/.test(t)) {
-    const hrs = hrsMatch ? parseFloat(hrsMatch[1].replace(',','.')) : null;
-    return {
-      intent: 'hours_log',
-      reply: hrs ? `Записано: ${hrs}ч наработки ✓` : 'Сколько часов?',
-      confidence: 0.93,
-      confidence_route: 'auto',
-      entities: { hours: hrs },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: [],
-      errors: [],
-    };
-  }
-
-  // Shift start
-  if (/начин|смену|смена/.test(t)) {
-    return {
-      intent: 'shift_start',
-      reply: `Смена открыта. Машина ${op.machine} активна. Удачной смены!`,
-      confidence: 0.97,
-      confidence_route: 'auto',
-      entities: { reg_number: op.machine },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: [],
-      errors: [],
-    };
-  }
-
-  // Shift end
-  if (/конч|закон|завершена|смена конец/.test(t)) {
-    return {
-      intent: 'shift_end',
-      reply: 'Смена закончена. Сейчас рассчитаю итоги...',
-      confidence: 0.96,
-      confidence_route: 'auto',
-      entities: {},
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: ['shift_end_summary'],
-      errors: [],
-    };
-  }
-
-  // Critical
-  if (/пожар|fire|горит/.test(t)) {
-    return {
-      intent: 'issue_report',
-      reply: 'Зафиксировано: пожар. Приоритет: CRITICAL. Уведомление отправлено.',
-      confidence: 0.97,
-      confidence_route: 'auto',
-      entities: { description: text, severity: 'critical', component: 'cab', symptom: 'fire' },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: ['critical_issue_escalation'],
-      errors: [],
-    };
-  }
-
-  // Issue
-  if (/стуч|течь|масло|гидравл|двигател|сломал|проблем|неисправ/.test(t)) {
-    return {
-      intent: 'issue_report',
-      reply: `Зафиксировано: ${text.slice(0,60)}. Приоритет: MEDIUM.`,
-      confidence: 0.81,
-      confidence_route: 'confirm',
-      entities: { description: text, severity: 'warning' },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: [],
-      errors: [],
-    };
-  }
-
-  // Production
-  const prodMatch = t.match(/(\d+)\s*(куб|рейс|тонн)/);
-  if (prodMatch) {
-    return {
-      intent: 'production_log',
-      reply: `Записано: ${prodMatch[1]} ${prodMatch[2]}`,
-      confidence: 0.88,
-      confidence_route: 'auto',
-      entities: { production_qty: parseInt(prodMatch[1]), production_unit: prodMatch[2] },
-      timeline_event_id: Math.floor(Math.random()*9000+1000),
-      rules_fired: [],
-      errors: [],
-    };
-  }
-
-  return {
-    intent: 'clarification_needed',
-    reply: 'Не распознал команду. Попробуйте ещё раз.',
-    confidence: 0.22,
-    confidence_route: 'llm',
-    entities: {},
-    timeline_event_id: null,
-    rules_fired: [],
-    errors: [],
-  };
 }
+
+function renderIntelligencePanel(data) {
+  const body = document.getElementById('fleet-body');
+  body.innerHTML = '';
+
+  // Summary row
+  const s = data.summary || {};
+  const sumDiv = document.createElement('div');
+  sumDiv.className = 'machine-stats';
+  sumDiv.style.marginBottom = '8px';
+  sumDiv.innerHTML = `
+    <div class="stat-cell">
+      <div class="stat-label">машин</div>
+      <div class="stat-value accent">${s.total_machines ?? '—'}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">смен активно</div>
+      <div class="stat-value accent">${s.active_shifts ?? 0}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">аномалий</div>
+      <div class="stat-value${(s.total_anomalies ?? 0) > 0 ? ' warn' : ' accent'}">${s.total_anomalies ?? 0}</div>
+    </div>
+    <div class="stat-cell">
+      <div class="stat-label">проблем</div>
+      <div class="stat-value${(s.total_open_issues ?? 0) > 0 ? ' warn' : ' accent'}">${s.total_open_issues ?? 0}</div>
+    </div>
+  `;
+  body.appendChild(sumDiv);
+
+  const machines = data.machines || [];
+  if (machines.length === 0) {
+    const empty = document.createElement('div');
+    empty.style.cssText = 'color:var(--muted);font-family:var(--mono);font-size:11px;text-align:center;padding:24px 0;';
+    empty.textContent = 'Нет активных машин';
+    body.appendChild(empty);
+  } else {
+    machines.forEach(m => {
+      const card = document.createElement('div');
+      card.className = 'machine-card clickable';
+      card.id = `mc-${m.reg_number}`;
+      card.addEventListener('click', () => showMachineDetail(m.reg_number));
+
+      const statusCls = m.status === 'WORKING' ? 'working'
+                      : m.status === 'WARNING'  ? 'warning'
+                      : m.status === 'DOWN'     ? 'down' : 'idle';
+
+      const showSeparateReg = m.alias && m.alias !== m.reg_number;
+      const shiftBadge = m.shift_active
+        ? '<span style="font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--ok);border:1px solid var(--ok);padding:1px 5px;border-radius:2px">СМЕНА</span>'
+        : '';
+
+      const anomalyHtml = m.anomaly ? `
+        <div class="issue-badge" style="color:var(--danger)">
+          <span class="issue-dot" style="background:var(--danger)"></span>
+          АНОМАЛИЯ топлива${m.fuel_rate != null ? ': ' + m.fuel_rate + ' л/ч' : ''}
+        </div>` : '';
+
+      const issueHtml = (m.open_issues ?? 0) > 0 ? `
+        <div class="issue-badge">
+          <span class="issue-dot"></span>${m.open_issues} открытых проблем
+        </div>` : '';
+
+      const ago = m.last_contact_minutes_ago;
+      const contactText = ago != null
+        ? (ago < 60 ? `${ago} мин назад` : `${Math.floor(ago / 60)} ч назад`)
+        : '—';
+      const contactWarn = ago != null && ago > 60;
+
+      card.innerHTML = `
+        <div class="machine-card-top" style="margin-bottom:4px">
+          <div>
+            <div class="machine-reg">${m.alias || m.reg_number}</div>
+            ${showSeparateReg ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px">${m.reg_number}</div>` : ''}
+          </div>
+          <span class="status-pill ${statusCls}">${m.status}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px">
+          <span class="machine-type">${m.type || ''}</span>
+          ${shiftBadge}
+        </div>
+        <div class="machine-stats">
+          <div class="stat-cell">
+            <div class="stat-label">топливо сегодня</div>
+            <div class="stat-value${m.anomaly ? ' warn' : ' accent'}">${m.fuel_today ?? 0}л</div>
+          </div>
+          <div class="stat-cell">
+            <div class="stat-label">наработка сегодня</div>
+            <div class="stat-value accent">${m.hours_today ?? 0}ч</div>
+          </div>
+        </div>
+        ${anomalyHtml}${issueHtml}
+        <div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:${contactWarn ? 'var(--warn)' : 'var(--muted)'}">
+          контакт: ${contactText}
+        </div>
+      `;
+      body.appendChild(card);
+    });
+  }
+
+  const hdr = document.querySelector('#panel-fleet .panel-header');
+  if (hdr) {
+    const t = new Date().toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'});
+    hdr.textContent = `fleet intelligence · ${t}`;
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Machine detail view
+// ─────────────────────────────────────────────────────────────────────────────
+async function showMachineDetail(regNumber) {
+  detailMode = true;
+  const body = document.getElementById('fleet-body');
+  body.innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:16px 0;text-align:center">загружаю...</div>';
+
+  try {
+    const resp = await fetch(`${API}/api/v1/vfm/machine/${encodeURIComponent(regNumber)}/state`);
+    if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+    renderMachineDetail(await resp.json());
+  } catch (e) {
+    body.innerHTML = '';
+    const btn = document.createElement('button');
+    btn.className = 'detail-back';
+    btn.textContent = '← назад';
+    btn.addEventListener('click', showFleetList);
+    body.appendChild(btn);
+    const err = document.createElement('div');
+    err.style.cssText = 'color:var(--warn);font-family:var(--mono);font-size:11px;padding:8px 0;';
+    err.textContent = 'Нет данных от сервера';
+    body.appendChild(err);
+  }
+}
+
+function renderMachineDetail(data) {
+  const body = document.getElementById('fleet-body');
+  body.innerHTML = '';
+
+  const backBtn = document.createElement('button');
+  backBtn.className = 'detail-back';
+  backBtn.textContent = '← назад';
+  backBtn.addEventListener('click', showFleetList);
+  body.appendChild(backBtn);
+
+  const m      = data.machine    || {};
+  const s      = data.state      || {};
+  const issues = data.open_issues || [];
+
+  const statusCls = s.status === 'WORKING' ? 'working'
+                  : s.status === 'WARNING'  ? 'warning'
+                  : s.status === 'DOWN'     ? 'down' : 'idle';
+
+  let contactText = '—';
+  if (s.last_event_at) {
+    const mins = Math.round((Date.now() - new Date(s.last_event_at)) / 60000);
+    contactText = mins < 60 ? `${mins} мин назад` : `${Math.floor(mins / 60)} ч назад`;
+  }
+
+  const machineCard = document.createElement('div');
+  machineCard.className = 'machine-card';
+  const showReg = m.alias && m.alias !== m.reg_number;
+  machineCard.innerHTML = `
+    <div class="machine-card-top" style="margin-bottom:4px">
+      <div>
+        <div class="machine-reg">${m.alias || m.reg_number}</div>
+        ${showReg ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:1px">${m.reg_number}</div>` : ''}
+      </div>
+      <span class="status-pill ${statusCls}">${s.status || 'IDLE'}</span>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:10px">${m.type || ''}</div>
+    <div class="machine-stats">
+      <div class="stat-cell">
+        <div class="stat-label">топливо сегодня</div>
+        <div class="stat-value accent">${s.fuel_added_today ?? 0}л</div>
+      </div>
+      <div class="stat-cell">
+        <div class="stat-label">наработка сегодня</div>
+        <div class="stat-value accent">${s.hours_worked_today ?? 0}ч</div>
+      </div>
+    </div>
+    <div style="margin-top:6px;font-family:var(--mono);font-size:10px;color:var(--muted)">
+      контакт: ${contactText}
+    </div>
+  `;
+  body.appendChild(machineCard);
+
+  const issHdr = document.createElement('div');
+  issHdr.className = 'issues-header';
+  issHdr.textContent = `открытые проблемы (${issues.length})`;
+  body.appendChild(issHdr);
+
+  if (issues.length === 0) {
+    const none = document.createElement('div');
+    none.style.cssText = 'font-family:var(--mono);font-size:11px;color:var(--muted);padding:6px 0;';
+    none.textContent = 'Проблем нет ✓';
+    body.appendChild(none);
+  } else {
+    issues.forEach(iss => {
+      const row = document.createElement('div');
+      row.className = 'issue-row';
+      const priCls = iss.priority === 'CRITICAL' ? 'critical'
+                   : iss.priority === 'LOW'       ? 'low' : '';
+      const meta = [
+        iss.component ? `компонент: ${iss.component}` : null,
+        iss.priority  ? `приоритет: ${iss.priority}`  : null,
+        iss.created_at
+          ? new Date(iss.created_at).toLocaleTimeString('ru', {hour: '2-digit', minute: '2-digit'})
+          : null,
+      ].filter(Boolean);
+      row.innerHTML = `
+        <div class="issue-row-desc">${iss.description || '—'}</div>
+        <div class="issue-row-meta">
+          ${meta.map((txt, i) =>
+            i === 1
+              ? `<span class="issue-priority ${priCls}">${txt}</span>`
+              : `<span>${txt}</span>`
+          ).join('')}
+        </div>
+      `;
+      body.appendChild(row);
+    });
+  }
+
+  const panelHdr = document.querySelector('#panel-fleet .panel-header');
+  if (panelHdr) panelHdr.textContent = 'fleet intelligence · detail';
+}
+
+function showFleetList() {
+  detailMode = false;
+  fetchFleetIntelligence();
+}
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Keyboard / input
@@ -1041,23 +1150,29 @@ input.addEventListener('input', () => {
 document.getElementById('send-btn').addEventListener('click', () => sendMessage(input.value));
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Initial fleet render
+// Startup
 // ─────────────────────────────────────────────────────────────────────────────
-fleetState['CAT-101'].type = 'Экскаватор';
-fleetState['BLZ-042'].type = 'Самосвал';
-fleetState['KOM-007'].type = 'Бульдозер';
-renderFleet();
-
-// Check if real backend is available and update badge
-fetch('/api/v1/vfm/status').then(r => {
-  if (r.ok) {
-    document.getElementById('model-badge').textContent = '● live backend';
-    document.getElementById('model-badge').style.borderColor = 'var(--ok)';
-    document.getElementById('model-badge').style.color = 'var(--ok)';
+(async () => {
+  // Check backend and update status badge
+  try {
+    const r = await fetch('/api/v1/vfm/status');
+    if (r.ok) {
+      const d = await r.json();
+      const model = d.pipeline?.mode === 'full' ? '● full pipeline' : '● live backend';
+      const badge = document.getElementById('model-badge');
+      badge.textContent = model;
+      badge.style.borderColor = 'var(--ok)';
+      badge.style.color = 'var(--ok)';
+    }
+  } catch(e) {
+    document.getElementById('model-badge').textContent = '● offline';
   }
-}).catch(() => {
-  document.getElementById('model-badge').textContent = '● mock mode';
-});
+
+  // Load operators and fleet in parallel
+  await initSandbox();
+  fetchFleetIntelligence();
+  setInterval(fetchFleetIntelligence, 30000);
+})();
 </script>
 </body>
 </html>

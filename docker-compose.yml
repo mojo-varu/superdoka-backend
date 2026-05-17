@@ -34,12 +34,15 @@ services:
       - "8000:8000"
     volumes:
       - ./app:/app/app
+      - ./app/models:/app/models
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       - ./static:/app/static
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:logbuk123@db:5432/logbuk_db
       REDIS_URL: redis://redis:6379/0
+      CLASSIFIER_MODEL_PATH: /app/models/onnx/intent_classifier
+      NER_MODEL_PATH: /app/models/onnx/ner_extractor
       
       # LLM Configuration pointing to local host machine
       LLM_PROVIDER: ollama

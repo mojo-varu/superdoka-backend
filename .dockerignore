@@ -35,3 +35,7 @@ npm-debug.log*
 .env.*
 !.env.example
 !.env.docker
+
+app/models/
+models/
+*.onnx

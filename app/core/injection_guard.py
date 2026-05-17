@@ -28,6 +28,8 @@ import unicodedata
 from dataclasses import dataclass, field
 from typing import Optional
 
+from app.core.text_normaliser import normalise_text_preserving_plates
+
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
@@ -198,6 +200,7 @@ def _sanitise(text: str) -> str:
 
     # Normalise unicode to NFC (catches homoglyph attacks — Cyrillic а vs Latin a)
     cleaned = unicodedata.normalize("NFC", cleaned)
+    cleaned = normalise_text_preserving_plates(cleaned)
 
     # Collapse excessive whitespace (more than 2 consecutive newlines → 2)
     cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)

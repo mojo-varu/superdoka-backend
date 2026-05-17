@@ -29,6 +29,7 @@ class MessageSource(str, Enum):
     TELEGRAM = "telegram"
     MAX      = "max"
     REST     = "rest"
+    SANDBOX  = "sandbox"
 
 
 class Modality(str, Enum):
@@ -96,6 +97,7 @@ class Action(BaseModel):
 class SessionContext(BaseModel):
     machine_id:          Optional[int]      = None
     machine_reg_number:  Optional[str]      = None
+    machine_alias:       Optional[str]      = None
     machine_type:        Optional[str]      = None
     shift_started_at:    Optional[datetime] = None
     fuel_logged_today:   float              = 0.0

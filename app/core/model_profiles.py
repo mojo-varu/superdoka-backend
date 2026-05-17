@@ -44,7 +44,8 @@ _BASE_FORBIDDEN = (
     "- НЕ угадывай номер машины: если оператор не написал номер явно — верни null.\n"
     "- НЕ интерпретируй «проблем нет» как issue_report — это status_update.\n"
     "- НЕ добавляй текст вне JSON: первый символ ответа должен быть '{', последний '}'.\n"
-    "- НЕ используй ```json фенсинг — только сырой JSON."
+    "- НЕ используй ```json фенсинг — только сырой JSON.\n"
+    "- Номера машин содержат кириллические буквы А В Е К М Н О Р С Т У Х — НЕ заменяй на латинские."
 )
 
 # Extra lines for Qwen2.5 / Qwen3 (both use qwen chat template)
@@ -87,15 +88,14 @@ def ollama_options(model: str | None = None) -> dict:
                       < 200 tokens; this is a safety ceiling.
     top_k=1         — greedy decoding.  Combined with temperature=0 this
                       guarantees the same output for the same input.
+                    - Номера машин содержат кириллические буквы (А, В, Е, К, М, Н, О, Р, С, Т, Х) — НЕ заменяй на латинские.
     """
     m = (model or _MODEL).lower()
     base = {
-        "temperature":    0.0,
-        "num_predict":    600,
+        "temperature": 0.0,
     }
     if "qwen" in m:
         base.update({
-            "repeat_penalty": 1.05,
-            "top_k":          1,
+            "top_k": 1,
         })
     return base

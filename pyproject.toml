@@ -24,6 +24,8 @@ onnxruntime = "^1.23.0"
 transformers = "^4.56.2"
 datasets = "^4.1.1"
 evaluate = "^0.4.6"
+aiosqlite = "^0.22.1"
+greenlet = "^3.5.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"

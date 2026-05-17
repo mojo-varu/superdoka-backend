@@ -47,9 +47,9 @@ MACHINES = [
 ]
 
 OPERATORS = [
-    {"telegram_id": 200001, "name": "Иван Сидоров",   "mobile": "+79001234501"},
-    {"telegram_id": 200002, "name": "Пётр Кузнецов",  "mobile": "+79001234502"},
-    {"telegram_id": 200003, "name": "Михаил Фёдоров", "mobile": "+79001234503"},
+    {"platform_user_id": 200001, "name": "Иван Сидоров",   "mobile": "+79001234501"},
+    {"platform_user_id": 200002, "name": "Пётр Кузнецов",  "mobile": "+79001234502"},
+    {"platform_user_id": 200003, "name": "Михаил Фёдоров", "mobile": "+79001234503"},
 ]
 
 
@@ -58,7 +58,7 @@ async def seed():
     async with AsyncSessionLocal() as db:
         # ── Owner ──────────────────────────────────────────────────────────
         owner = User(
-            telegram_id=100001, mobile="+79000000001",
+            platform_user_id=100001, mobile="+79000000001",
             name="Алексей Петров", user_type="OWNER",
         )
         db.add(owner)
@@ -156,7 +156,7 @@ async def seed():
     print("\nDemo seed complete.")
     print(f"  Owner:      Алексей Петров    (telegram_id=100001)")
     for i, op in enumerate(OPERATORS):
-        print(f"  Operator {i+1}: {op['name']:<20} (telegram_id={op['telegram_id']})")
+        print(f"  Operator {i+1}: {op['name']:<20} (operator_id={op['platform_user_id']})")
     for m in MACHINES:
         print(f"  Machine:    {m['reg_number']:<10} {m['machine_type']}")
     print()

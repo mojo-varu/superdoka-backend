@@ -1,1 +1,21 @@
 .env
+**/__pycache__/
+**.pyc
+
+# Large model binaries — managed separately (extract from models_intent_ner_onnx.zip)
+app/models/
+*.onnx
+models_intent_ner_onnx.zip
+
+# Dev database
+vfm_dev.db
+*.db
+
+# Archive / training artefacts
+train/
+probe-environment.yml
+VFM\ Sandbox.zip
+
+# Local tooling
+.claude/settings.local.json
+.DS_Store

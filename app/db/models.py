@@ -22,6 +22,7 @@ from sqlalchemy import (
     Float, ForeignKey, Index, Integer, JSON, String, Text,
     UniqueConstraint,
 )
+from sqlalchemy import event as sa_event
 from sqlalchemy.orm import Mapped, relationship
 
 from app.db.base import Base
@@ -178,6 +179,14 @@ class Machine(Base):
         CheckConstraint("year >= 1900 AND year <= 2030", name="valid_year"),
         {"extend_existing": True},
     )
+
+
+@sa_event.listens_for(Machine, "before_insert")
+@sa_event.listens_for(Machine, "before_update")
+def normalise_machine_reg(mapper, connection, target):
+    from app.core.text_normaliser import normalise_plate
+    if target.reg_number:
+        target.reg_number = normalise_plate(target.reg_number)
 
 
 class MachineAssignment(Base):

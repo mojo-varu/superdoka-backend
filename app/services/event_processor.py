@@ -21,13 +21,15 @@ Flow:
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.context_llm  import context_extract, ExtractionResult
+from app.core.context_llm  import context_extract, ExtractionResult, _call_llm
+from app.core.text_normaliser import normalise_plate
 from app.db.models import (
     FuelLog, GroupMessage, HoursLog, IssueReport,
     MachineState, MachineStatus, TimelineEvent, User,
@@ -43,15 +45,23 @@ logger = logging.getLogger(__name__)
 
 # Reply templates (Russian)
 REPLY_TEMPLATES = {
-    "fuel_auto":        "Записано: {fuel_volume}л топлива ✓",
-    "hours_auto":       "Записано: {hours}ч наработки ✓",
-    "issue_auto":       "Зафиксировано: {description}. Приоритет: {priority}.",
+    "fuel_auto":        "Записал: {fuel_volume}л топлива ✓",
+    "hours_auto":       "Записал: {hours}ч наработки ✓",
+    "issue_auto":       "Зафиксировал: {description}. Приоритет: {priority}.",
     "shift_start":      "Смена открыта. Машина {reg_number} активна. Удачной смены!",
     "shift_end":        "Смена закончена. Сейчас рассчитаю итоги...",
     "needs_confirm":    "{summary}\n\nВсё верно? [Верно ✓] [Исправить ✗]",
     "needs_machine":    "Не могу определить машину. На какой технике работаете сегодня?",
     "clarification":    "Не распознал команду. Попробуйте ещё раз или начните смену: «Начинаю смену на [номер]»",
     "no_session":       "Вы не в смене. Напишите «Начинаю смену на [номер машины]»",
+}
+
+
+_CRITICAL_KEYWORDS = {"пожар", "горит", "огонь", "fire", "пожара", "горим"}
+
+REAL_FIELDS = {
+    "fuel_volume", "hours", "reg_number", "description",
+    "production_qty", "production_unit", "notes",
 }
 
 
@@ -81,7 +91,7 @@ class EventProcessor:
             await self._resolve_operator(db, update)
 
             # Step 2 — Intelligence: context-gated LLM extraction
-            await self._run_intelligence(db, update)
+            await self._run_intelligence(db, update, None)
 
             # Step 3 — Agency: session + machine resolution
             await self._resolve_session(db, update)
@@ -103,8 +113,15 @@ class EventProcessor:
             # Step 7 — evaluate rules
             await self._evaluate_rules(db, update)
 
-            # Step 8 — build reply
-            self._build_reply(update)
+            # Step 8 — agency reply for off-topic, else standard reply builder
+            intent_val = getattr(update.intent, 'value', update.intent)
+            if intent_val in ('unknown', 'clarification_needed'):
+                real_missing = any(f in REAL_FIELDS for f in (getattr(update, '_missing_fields', None) or []))
+                if not real_missing:
+                    update.reply_text = await self._agency_reply(update, getattr(update, '_session_ctx', None))
+                # else: reply_text already set by clarification handler in step 2
+            else:
+                self._build_reply(update)
 
             update.mark_processed()
             return update
@@ -132,89 +149,38 @@ class EventProcessor:
         else:
             update.add_error(f"Unknown operator platform_user_id={update.operator_id}")
 
-    # ── Step 2: Intelligence (context-gated LLM) ──────────────────────────
+    # ── Step 2: Intelligence (four-stage pipeline) ────────────────────────
 
-    async def _run_intelligence(self, db: AsyncSession, update: FleetUpdate) -> None:
-        """
-        Fetch session + recent history, then run context_extract.
-        Session context is read-only here — full session write happens in Step 3.
-        """
-        from app.core.context_llm import context_extract, ExtractionResult
-        from app.db.models import Machine, TimelineEvent
-        from app.schemas.fleet_update import SessionContext
-        from app.services.session_service import session_service
+    async def _run_intelligence(
+        self, db: AsyncSession, update: FleetUpdate, session
+    ) -> None:
+        from app.core.intelligence_router import run_intelligence
 
-        session_ctx = None
-        if update.operator_db_id:
-            active = await session_service.get_active_session(db, update.operator_db_id)
-            if active:
-                state_result = await db.execute(
-                    select(MachineState).where(MachineState.machine_id == active.machine_id)
-                )
-                state = state_result.scalar_one_or_none()
-                machine_result = await db.execute(
-                    select(Machine).where(Machine.id == active.machine_id)
-                )
-                machine = machine_result.scalar_one_or_none()
-                session_ctx = SessionContext(
-                    machine_id         = active.machine_id,
-                    machine_reg_number = machine.reg_number if machine else None,
-                    machine_type       = machine.machine_type if machine else None,
-                    shift_started_at   = active.started_at,
-                    fuel_logged_today  = state.fuel_added_today if state else 0.0,
-                    hours_logged_today = state.hours_worked_today if state else 0.0,
-                    open_issue_count   = state.open_issue_count if state else 0,
-                    minutes_on_shift   = int(
-                        (datetime.utcnow() - active.started_at).total_seconds() / 60
-                    ) if active.started_at else None,
-                )
+        recent_history = await self._fetch_recent_history(db, update) \
+                         if hasattr(self, '_fetch_recent_history') else None
 
-        recent_history = None
-        if session_ctx and session_ctx.machine_id:
-            tl_result = await db.execute(
-                select(TimelineEvent)
-                .where(TimelineEvent.machine_id == session_ctx.machine_id)
-                .order_by(TimelineEvent.id.desc())
-                .limit(8)
-            )
-            events = tl_result.scalars().all()
-            recent_history = [
-                {
-                    "created_at": e.created_at,
-                    "event_type": e.event_type,
-                    "content":    e.content or {},
-                    "raw_text":   e.raw_text or "",
-                }
-                for e in reversed(events)
-            ]
-
-        result: ExtractionResult = await context_extract(
-            update         = update,
-            session        = session_ctx,
-            recent_history = recent_history,
-        )
+        result = await run_intelligence(update, session, recent_history, db=db)
 
         update.intent           = result.intent
-        update.entities         = result.entities
+        update.entities         = result.entities or {}
         update.confidence       = result.confidence
         update.confidence_route = result.confidence_route
-        update.via_llm          = True
-        update.reg_number       = result.entities.get("reg_number")
+        object.__setattr__(update, '_missing_fields', result.missing_fields)
+        object.__setattr__(update, '_session_ctx', session)
 
-        sev_raw = result.entities.get("severity")
-        if sev_raw:
-            try:
-                update.severity = Severity(sev_raw)
-            except ValueError:
-                pass
+        REAL_FIELDS = {
+            "fuel_volume", "hours", "reg_number", "description",
+            "production_qty", "production_unit", "notes"
+        }
+        if result.clarification:
+            missing = result.missing_fields or []
+            if not missing:
+                update.reply_text = result.clarification
+            elif any(f in REAL_FIELDS for f in missing):
+                update.reply_text = result.clarification
 
-        if result.clarification and result.missing_fields:
-            update.reply_text = result.clarification
-
-        for err in result.errors:
-            update.add_error(err)
-        if result.guard_result and result.guard_result.threat_level != "none":
-            update.add_error(f"Guard: {result.guard_result.reason}")
+        for e in result.errors:
+            update.add_error(e)
 
     # ── Step 3: Session & machine resolution ──────────────────────────────
 
@@ -469,6 +435,45 @@ class EventProcessor:
         update.actions.extend(actions)
         update.rules_fired = rule_engine.last_fired_rule_ids
 
+    # ── Agency reply for off-topic messages ──────────────────────────────
+
+    async def _agency_reply(
+        self, update: FleetUpdate, session: Optional[SessionContext]
+    ) -> str:
+        """
+        Compact LLM call for messages that don't map to a fleet intent.
+        Reacts naturally to what the operator said, then bridges back to the machine.
+        """
+        import json
+
+        machine  = (session.machine_alias or session.machine_reg_number) if session else "машина"
+        fuel     = session.fuel_logged_today  if session else 0
+        hours    = session.hours_logged_today if session else 0
+        issues   = session.open_issue_count   if session else 0
+
+        context_line = f"Машина: {machine}. Топливо: {fuel}л. Наработка: {hours}ч."
+        if issues:
+            context_line += f" Открытых проблем: {issues}."
+
+        system = (
+            "Ты — VFM, помощник оператора строительной техники. "
+            "Оператор написал что-то не связанное с работой машины. "
+            "Ответь коротко (1-2 предложения): "
+            "сначала отреагируй на сообщение по-человечески, "
+            "затем мягко направь разговор к состоянию машины. "
+            "Не используй шаблонные фразы. Будь живым."
+            f"\nКонтекст смены: {context_line}"
+        )
+
+        try:
+            raw = (await _call_llm(system, update.raw_text)).strip()
+            if raw.startswith('{'):
+                d = json.loads(raw)
+                return d.get('reply', d.get('text', raw))
+            return raw
+        except Exception:
+            return "Понял! Если что по машине — пиши."
+
     # ── Step 8: Build reply ───────────────────────────────────────────────
 
     def _build_reply(self, update: FleetUpdate) -> None:
@@ -480,6 +485,8 @@ class EventProcessor:
             base = REPLY_TEMPLATES["fuel_auto"].format(
                 fuel_volume=update.entities.get("fuel_volume", "?")
             )
+            if not re.search(r'\d+', update.raw_text):
+                base += " — из контекста, верно?"
         elif update.intent == Intent.HOURS_LOG:
             base = REPLY_TEMPLATES["hours_auto"].format(
                 hours=update.entities.get("hours", "?")
@@ -489,6 +496,13 @@ class EventProcessor:
                 description=update.entities.get("description", update.raw_text[:50]),
                 priority=self._severity_to_priority(update.severity),
             )
+        elif update.intent == Intent.STATUS_UPDATE or getattr(update.intent, 'value', update.intent) == 'status_update':
+            notes = update.entities.get("notes", "") or ""
+            if notes and len(notes) >= 3:
+                update.reply_text = f"Принято: {notes} ✓"
+            else:
+                update.reply_text = "Понял! Если что по машине — пиши."
+            return
         elif not update.has_active_session:
             update.reply_text = REPLY_TEMPLATES["needs_machine"]
             return
