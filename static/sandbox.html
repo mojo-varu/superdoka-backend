@@ -99,18 +99,18 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 
 #app-root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
 
-/* Header view-switch buttons */
+/* Header nav CTA buttons */
 .nb-view-btn {
-  font-family: var(--nb-font); font-weight: 700; font-size: 12px; letter-spacing: 0.01em;
-  padding: 7px 14px; border: 2px solid rgba(255,255,255,0.6); border-radius: var(--nb-radius-sm);
-  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--nb-font); font-weight: 800; font-size: 14px; letter-spacing: 0.01em;
+  padding: 11px 24px; border: 2px solid rgba(255,255,255,0.55); border-radius: var(--nb-radius-sm);
+  cursor: pointer; white-space: nowrap; display: inline-flex; align-items: center; gap: 8px;
   transition: transform .06s ease, box-shadow .06s ease;
-  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.75);
+  background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.85);
   box-shadow: 3px 3px 0 0 rgba(255,255,255,0.2);
 }
-.nb-view-btn.active { background: var(--nb-yellow); color: var(--nb-ink); border-color: #fff; box-shadow: 3px 3px 0 0 rgba(255,255,255,0.5); }
-.nb-view-btn:not(.active):hover { background: rgba(255,255,255,0.15); color: #fff; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 rgba(255,255,255,0.3); }
-.nb-view-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 rgba(255,255,255,0.2); }
+.nb-view-btn.active { background: var(--nb-yellow); color: var(--nb-ink); border-color: #fff; box-shadow: 3px 3px 0 0 rgba(255,255,255,0.4); }
+.nb-view-btn:not(.active):hover { background: rgba(255,255,255,0.12); color: #fff; transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 rgba(255,255,255,0.3); }
+.nb-view-btn:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 var(--nb-ink); }
 
 /* Language toggle */
 .nb-lang-btn {
@@ -121,6 +121,13 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 }
 .nb-lang-btn.active { background: var(--nb-paper); color: var(--nb-ink); border-color: #fff; box-shadow: 2px 2px 0 0 rgba(255,255,255,0.4); }
 .nb-lang-btn:not(.active):hover { background: rgba(255,255,255,0.12); color: #fff; }
+
+/* Inline nav badge buttons inside HowTo cards */
+.nb-inline-nav {
+  transition: transform .07s ease, box-shadow .07s ease;
+}
+.nb-inline-nav:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 var(--nb-ink) !important; }
+.nb-inline-nav:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 var(--nb-ink) !important; }
 </style>
 </head>
 <body>
@@ -1176,14 +1183,18 @@ function Bubble({ msg, opColor, lang }) {
   if (msg.from === "op") {
     return (
       <div style={{ alignSelf:"flex-end", maxWidth:"78%" }}>
-        <div style={{ background:opColor, border:"2px solid var(--nb-ink)", borderRadius:"12px 12px 4px 12px",
-          padding:"8px 12px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13.5, fontWeight:500, lineHeight:1.45 }}>{text}</div>
+        <div style={{ background:"var(--nb-lime)", border:"2px solid var(--nb-ink)", borderRadius:"12px 12px 4px 12px",
+          padding:"8px 14px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13.5, fontWeight:600, lineHeight:1.45,
+          color:"var(--nb-ink)" }}>{text}</div>
         <div style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", marginTop:3, textAlign:"right" }}>{msg.ts}</div>
       </div>
     );
   }
-  const toneBg = { ok:"var(--nb-paper)", warn:"var(--nb-yellow)", bad:"var(--nb-coral)" }[msg.tone || "ok"];
-  const assistantLabel = lang === 'ru' ? "ассистент" : "assistant";
+  const toneStyle = {
+    ok:   { bg:"var(--nb-sky)",    color:"#fff",              border:"2px solid var(--nb-ink)",    shadow:"3px 3px 0 0 var(--nb-ink)" },
+    warn: { bg:"var(--nb-yellow)", color:"var(--nb-ink)",     border:"2px solid var(--nb-ink)",    shadow:"3px 3px 0 0 var(--nb-ink)" },
+    bad:  { bg:"var(--nb-coral)",  color:"#fff",              border:"2px solid var(--nb-ink)",    shadow:"3px 3px 0 0 var(--nb-ink)" },
+  }[msg.tone || "ok"];
   return (
     <div style={{ alignSelf:"flex-start", maxWidth:"82%" }}>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
@@ -1191,16 +1202,17 @@ function Bubble({ msg, opColor, lang }) {
           display:"flex", alignItems:"center", justifyContent:"center",
           fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700, border:"2px solid var(--nb-ink)" }}>VFM</div>
         <span style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", textTransform:"uppercase", letterSpacing:".08em" }}>
-          {assistantLabel} · {msg.ts}
+          SUPERDOKA · {msg.ts}
         </span>
       </div>
-      <div style={{ background:toneBg, border:"2px solid var(--nb-ink)", borderRadius:"4px 12px 12px 12px",
-        padding:"8px 12px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13, lineHeight:1.45 }}>
+      <div style={{ background:toneStyle.bg, border:toneStyle.border, borderRadius:"4px 12px 12px 12px",
+        padding:"10px 14px", boxShadow:toneStyle.shadow, fontSize:13, lineHeight:1.5, color:toneStyle.color }}>
         {text}
         {msg.ext && (
-          <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6, paddingTop:6, borderTop:"1.5px dashed rgba(0,0,0,0.25)" }}>
+          <div style={{ display:"flex", flexWrap:"wrap", gap:4, marginTop:6, paddingTop:6,
+            borderTop:`1.5px dashed ${msg.tone === 'ok' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'}` }}>
             <span className="nb-tag ink">{displayIntent(msg.ext.intent, lang)}</span>
-            {msg.ext.conf && <span className="nb-tag">conf {msg.ext.conf}</span>}
+            {msg.ext.conf && <span className="nb-tag ink">conf {msg.ext.conf}</span>}
           </div>
         )}
       </div>
@@ -1220,6 +1232,21 @@ function MachinePill({ m }) {
   );
 }
 
+function SampleChip({ msg, color, onClick }) {
+  const [flash, setFlash] = React.useState(false);
+  const handle = () => { setFlash(true); setTimeout(() => setFlash(false), 500); onClick(); };
+  return (
+    <div onClick={handle} style={{
+      fontFamily:"var(--nb-mono)", fontSize:12.5, padding:"7px 13px",
+      background: flash ? "var(--nb-lime)" : (color || "var(--nb-bg-alt)"),
+      border:"2px solid var(--nb-ink)", borderRadius:4, cursor:"pointer",
+      transition:"background .12s", userSelect:"none", lineHeight:1.4,
+    }}>
+      {msg}
+    </div>
+  );
+}
+
 function OperatorSandbox() {
   const { t, lang } = useLangT2();
   const [operators, setOperators] = React.useState([]);
@@ -1228,6 +1255,7 @@ function OperatorSandbox() {
   const [draft, setDraft] = React.useState("");
   const [apiLoading, setApiLoading] = React.useState(false);
   const [opsLoading, setOpsLoading] = React.useState(true);
+  const [showSamples, setShowSamples] = React.useState(false);
   const msgsRef = React.useRef(null);
   const lastEventIdRef = React.useRef(0);
   const pollRef = React.useRef(null);
@@ -1400,11 +1428,11 @@ function OperatorSandbox() {
   );
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
-      <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", flex:1, minHeight:0 }}>
+    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden", background:"#cdc8be" }}>
+      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", flex:1, minHeight:0, gap:20, padding:"32px 5%", background:"#cdc8be" }}>
 
         {/* Operator list */}
-        <div style={{ background:"var(--nb-bg-alt)", borderRight:"var(--nb-border-thick)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        <div style={{ background:"var(--nb-bg-alt)", border:"var(--nb-border)", borderRadius:"var(--nb-radius)", boxShadow:"var(--nb-shadow)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
           <div style={{ padding:"12px 14px 10px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-yellow)" }}>
             <div className="nb-label">{t('ops_header')}</div>
             <div style={{ fontWeight:700, fontSize:18, marginTop:2 }}>
@@ -1416,15 +1444,18 @@ function OperatorSandbox() {
               <OperatorChip key={o.id} op={o} active={o.id === currentOpId} onClick={() => setCurrentOpId(o.id)} />
             ))}
           </div>
-          <div style={{ padding:"10px 12px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-paper)", fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", lineHeight:1.5 }}>
-            <div style={{ fontWeight:700, color:"var(--nb-ink)", marginBottom:2 }}>{t('sandbox_mode')}</div>
-            {t('sandbox_hint')}
+          <div style={{ padding:"10px 12px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>
+            <button className="nb-btn" style={{ width:"100%", justifyContent:"center", fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, letterSpacing:".06em" }}
+              onClick={() => setShowSamples(true)}>
+              {lang === 'ru' ? 'ПОСМОТРЕТЬ ПРИМЕРЫ' : 'CHECK SAMPLE MESSAGES'}
+            </button>
           </div>
         </div>
 
         {/* Chat panel */}
         {currentOp ? (
-          <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0 }}>
+          <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0,
+            border:"var(--nb-border)", borderRadius:"var(--nb-radius)", boxShadow:"var(--nb-shadow)" }}>
             {/* Operator header */}
             <div style={{ padding:"14px 18px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
@@ -1460,7 +1491,7 @@ function OperatorSandbox() {
             {/* Messages */}
             <div ref={msgsRef} className="nb-scroll" style={{
               flex:1, overflowY:"auto", padding:"18px 18px 8px", display:"flex", flexDirection:"column", gap:14,
-              background:`repeating-linear-gradient(0deg, var(--nb-bg) 0 28px, var(--nb-bg) 28px 29px, rgba(10,10,10,0.04) 29px 30px)`,
+              background:"var(--nb-bg-alt)",
             }}>
               {history.length === 0 ? (
                 <div style={{ margin:"auto", textAlign:"center", background:"var(--nb-paper)", border:"var(--nb-border)", borderRadius:8, padding:"20px 28px", boxShadow:"var(--nb-shadow)" }}>
@@ -1475,10 +1506,10 @@ function OperatorSandbox() {
                       display:"flex", alignItems:"center", justifyContent:"center",
                       fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700, border:"2px solid var(--nb-ink)" }}>VFM</div>
                   </div>
-                  <div style={{ background:"var(--nb-paper)", border:"2px solid var(--nb-ink)", borderRadius:"4px 12px 12px 12px",
+                  <div style={{ background:"var(--nb-sky)", border:"2px solid var(--nb-ink)", borderRadius:"4px 12px 12px 12px",
                     padding:"10px 16px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontFamily:"var(--nb-mono)", fontSize:12, letterSpacing:".04em",
-                    display:"flex", alignItems:"center", gap:6 }}>
-                    <span style={{ opacity:.7 }}>▪ ▪ ▪</span>
+                    display:"flex", alignItems:"center", gap:6, color:"#fff" }}>
+                    <span style={{ opacity:.6 }}>▪ ▪ ▪</span>
                   </div>
                 </div>
               )}
@@ -1502,6 +1533,104 @@ function OperatorSandbox() {
           </div>
         )}
       </div>
+
+      {/* Sample Messages dialog */}
+      {showSamples && (() => {
+        const categories = [
+          {
+            labelRu: 'Начало смены', label: 'Shift start',
+            color: '#d8eecc', borderColor: 'var(--nb-mint)',
+            msgs: [
+              "Всё, начинаем. А771МР77, я на месте",
+              "Принял машину В542КУ77, приступаю",
+              "Смена пошла, Е318ТО77",
+            ],
+          },
+          {
+            labelRu: 'Топливо', label: 'Fuel',
+            color: '#cce4f0', borderColor: 'var(--nb-sky)',
+            msgs: [
+              "Залили 150 литров, бак полный",
+              "Заправились на 80л перед выездом",
+              "Дозаправка 60 литров в обед",
+            ],
+          },
+          {
+            labelRu: 'Наработка', label: 'Hours',
+            color: '#d4ecd6', borderColor: 'var(--nb-mint)',
+            msgs: [
+              "Отработал 6 часов, всё штатно",
+              "Часы: 4.5, пока без замечаний",
+            ],
+          },
+          {
+            labelRu: 'Неисправности', label: 'Issues',
+            color: '#fdf0cc', borderColor: 'var(--nb-yellow)',
+            msgs: [
+              "Гидравлика подтекает снизу, похоже уплотнение",
+              "Движок греется выше нормы, слежу",
+              "Тормоза мягкие стали, надо смотреть",
+              "Треск какой-то при повороте, не пойму откуда",
+            ],
+          },
+          {
+            labelRu: 'Прочее', label: 'Off-topic',
+            color: '#e8e4f4', borderColor: 'var(--nb-violet)',
+            msgs: [
+              "Обед взял, вернусь через полчаса",
+              "Дорогу перекрыли, стоим",
+              "Всё нормально у нас",
+            ],
+          },
+          {
+            labelRu: 'Конец смены', label: 'Shift end',
+            color: '#fce8d8', borderColor: 'var(--nb-orange)',
+            msgs: [
+              "Закончил, сдаю машину",
+              "Смена закрыта, до завтра",
+            ],
+          },
+        ];
+        return (
+          <div style={{ position:"fixed", inset:0, background:"rgba(20,23,26,0.55)", zIndex:200,
+            display:"flex", alignItems:"center", justifyContent:"center" }}
+            onClick={() => setShowSamples(false)}>
+            <div style={{ background:"var(--nb-paper)", border:"var(--nb-border-thick)", borderRadius:"var(--nb-radius)",
+              boxShadow:"var(--nb-shadow-lg)", width:520, maxWidth:"94vw", maxHeight:"82vh", overflow:"hidden",
+              display:"flex", flexDirection:"column" }}
+              onClick={e => e.stopPropagation()}>
+              <div style={{ padding:"12px 18px", background:"var(--nb-lime)", borderBottom:"2px solid var(--nb-ink)",
+                display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
+                <span style={{ fontWeight:800, fontSize:15 }}>
+                  {lang === 'ru' ? 'Примеры сообщений' : 'Sample Messages'}
+                </span>
+                <button className="nb-btn" style={{ padding:"4px 10px", fontSize:11 }} onClick={() => setShowSamples(false)}>✕</button>
+              </div>
+              <div className="nb-scroll" style={{ overflowY:"auto", padding:"14px 18px", display:"flex", flexDirection:"column", gap:16 }}>
+                {categories.map((cat, ci) => (
+                  <div key={ci}>
+                    <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
+                      textTransform:"uppercase", letterSpacing:".1em", color:"var(--nb-muted)",
+                      marginBottom:7, paddingBottom:4, borderBottom:`2px solid ${cat.borderColor}` }}>
+                      {lang === 'ru' ? cat.labelRu : cat.label}
+                    </div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:7 }}>
+                      {cat.msgs.map((msg, mi) => (
+                        <SampleChip key={mi} msg={msg} color={cat.color}
+                          onClick={() => { navigator.clipboard?.writeText(msg).catch(() => {}); }} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div style={{ padding:"9px 18px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)",
+                fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", flexShrink:0 }}>
+                {lang === 'ru' ? 'Нажмите на сообщение, скопируется в буфер' : 'Click a message to copy it to clipboard'}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
@@ -1514,11 +1643,219 @@ window.__OperatorSandbox = OperatorSandbox;
 const { useState } = React;
 const LangContext = window.__LangContext;
 
+function HowToView({ lang, onNavigate }) {
+  const T = window.__T[lang] || window.__T.ru;
+
+  return (
+    <div style={{ flex:1, overflow:"hidden", padding:"20px 32px", display:"flex", flexDirection:"column", gap:16 }}>
+
+        {/* Title */}
+        <div style={{ flexShrink:0 }}>
+          <div style={{ fontFamily:"var(--nb-mono)", fontSize:26, fontWeight:800, lineHeight:1.2 }}>
+            {lang === 'ru' ? 'Как попробовать SuperDoka в песочнице' : 'How to try SuperDoka on Sandbox'}
+          </div>
+        </div>
+
+        {/* Two cards side-by-side */}
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, flex:1, minHeight:0, paddingBottom:8, paddingRight:8 }}>
+
+          {/* Card 1 — Operator Chats */}
+          <div className="nb-card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+            <div style={{ background:"var(--nb-lime)", borderBottom:"2px solid var(--nb-ink)",
+              padding:"12px 18px", display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:12,
+                background:"var(--nb-ink)", color:"#fff", width:26, height:26, borderRadius:"50%",
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>◎</span>
+              <span style={{ fontWeight:900, fontSize:20, letterSpacing:"-.01em" }}>
+                {lang === 'ru' ? 'Для оператора' : "What's for Operator"}
+              </span>
+            </div>
+
+            <div className="nb-scroll" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
+
+              {/* What this is */}
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:8,
+                  background:"var(--nb-ink)", color:"#fff", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em" }}>
+                  {lang === 'ru' ? '◈ Что это' : '◈ What this is'}
+                </div>
+                <div style={{ fontSize:17, lineHeight:1.7 }}>
+                  {lang === 'ru'
+                    ? 'Это сторона оператора. Машинист отправляет сообщения с поля. SuperDoka читает их и автоматически извлекает структурированные данные.'
+                    : "This is the operator's side. The machine operator sends messages from the field. SuperDoka reads it and extracts structured data automatically."}
+                </div>
+              </div>
+
+              {/* What to do */}
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:10,
+                  background:"var(--nb-lime)", color:"var(--nb-ink)", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em", border:"2px solid var(--nb-ink)" }}>
+                  {lang === 'ru' ? '◎ Что делать' : '◎ What to do'}
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  {/* Step 1 — inline clickable badge */}
+                  <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                    <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:11,
+                      background:"var(--nb-ink)", color:"#fff", width:28, height:28, borderRadius:"50%",
+                      display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>1</span>
+                    <span style={{ fontSize:17, lineHeight:1.65 }}>
+                      {lang === 'ru' ? 'Нажмите ' : 'Click '}
+                      <button className="nb-inline-nav" onClick={() => onNavigate('operator')} style={{
+                        display:"inline-flex", alignItems:"center", verticalAlign:"middle",
+                        background:"var(--nb-lime)", border:"2px solid var(--nb-ink)", borderRadius:4,
+                        padding:"3px 12px", fontWeight:800, fontSize:15, fontFamily:"var(--nb-font)",
+                        cursor:"pointer", boxShadow:"2px 2px 0 0 var(--nb-ink)", margin:"0 3px",
+                        lineHeight:1.4,
+                      }}>
+                        {lang === 'ru' ? 'Консоль оператора' : 'Machine Operator Console'}
+                      </button>
+                      {lang === 'ru' ? ' в шапке' : ' in the header'}
+                    </span>
+                  </div>
+                  {(lang === 'ru' ? [
+                    'Выберите любого оператора из списка слева',
+                    'Откройте смену и отправьте сообщение, примеры есть прямо в консоли',
+                  ] : [
+                    'Select any operator from the left panel',
+                    'Start a shift and send a message, sample messages are in the console',
+                  ]).map((text, i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                      <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:13,
+                        background:"var(--nb-ink)", color:"#fff", width:22, height:22, borderRadius:"50%",
+                        display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+2}</span>
+                      <span style={{ fontSize:17, lineHeight:1.65 }}>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* What to expect */}
+              <div style={{ background:"var(--nb-bg-alt)", border:"2px solid var(--nb-ink)", borderRadius:4, padding:"16px 18px" }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:8,
+                  background:"var(--nb-yellow)", color:"var(--nb-ink)", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em", border:"2px solid var(--nb-ink)" }}>
+                  {lang === 'ru' ? '▲ Что ожидать' : '▲ What to expect'}
+                </div>
+                <div style={{ fontSize:17, lineHeight:1.7 }}>
+                  {lang === 'ru'
+                    ? 'После каждого сообщения смотрите ответ VFM в чате, он подтверждает, задаёт один уточняющий вопрос или эскалирует. Ни один ответ не случаен.'
+                    : 'After each message, watch the VFM reply in the chat, it confirms, asks one clarifying question, or escalates. No reply is random.'}
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          {/* Card 2 — Fleet Intelligence */}
+          <div className="nb-card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
+            <div style={{ background:"var(--nb-sky)", borderBottom:"2px solid var(--nb-ink)",
+              padding:"12px 18px", display:"flex", alignItems:"center", gap:10 }}>
+              <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:12,
+                background:"var(--nb-ink)", color:"#fff", width:26, height:26, borderRadius:"50%",
+                display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>▣</span>
+              <span style={{ fontWeight:900, fontSize:20, letterSpacing:"-.01em", color:"#fff" }}>
+                {lang === 'ru' ? 'Для владельца' : "What's for Owner"}
+              </span>
+            </div>
+            <div className="nb-scroll" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
+
+              {/* What this is */}
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:8,
+                  background:"var(--nb-ink)", color:"#fff", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em" }}>
+                  {lang === 'ru' ? '◈ Что это' : '◈ What this is'}
+                </div>
+                <div style={{ fontSize:17, lineHeight:1.7 }}>
+                  {lang === 'ru'
+                    ? 'Это сторона владельца. Всё, что оператор только что отправил, топливо, часы, проблемы, появляется здесь автоматически, структурированным и с меткой времени. Владелец ни о чём не спрашивал.'
+                    : "This is the owner's side. Everything the operator just sent, fuel, hours, issues, appears here automatically, structured and timestamped. The owner never had to ask."}
+                </div>
+              </div>
+
+              {/* What to do */}
+              <div>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:10,
+                  background:"var(--nb-sky)", color:"#fff", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em", border:"2px solid var(--nb-ink)" }}>
+                  {lang === 'ru' ? '◎ Что делать' : '◎ What to do'}
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+                  {/* Step 1 — inline clickable badge */}
+                  <div style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                    <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:11,
+                      background:"var(--nb-ink)", color:"#fff", width:28, height:28, borderRadius:"50%",
+                      display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>1</span>
+                    <span style={{ fontSize:17, lineHeight:1.65 }}>
+                      {lang === 'ru' ? 'Нажмите ' : 'Click '}
+                      <button className="nb-inline-nav" onClick={() => onNavigate('owner')} style={{
+                        display:"inline-flex", alignItems:"center", verticalAlign:"middle",
+                        background:"var(--nb-sky)", color:"#fff", border:"2px solid var(--nb-ink)", borderRadius:4,
+                        padding:"3px 12px", fontWeight:800, fontSize:15, fontFamily:"var(--nb-font)",
+                        cursor:"pointer", boxShadow:"2px 2px 0 0 var(--nb-ink)", margin:"0 3px",
+                        lineHeight:1.4,
+                      }}>
+                        {lang === 'ru' ? 'Аналитика флота' : 'Fleet Intelligence'}
+                      </button>
+                      {lang === 'ru' ? ' в шапке' : ' in the header'}
+                    </span>
+                  </div>
+                  {(lang === 'ru' ? [
+                    'Откройте вкладку Сводка, топливо, часы и открытые проблемы за сегодня',
+                    'Мой флот, нажмите на машину, чтобы увидеть детали и проблему от оператора',
+                    'Операторы, кто на смене и на какой машине',
+                  ] : [
+                    'Check the Summary tab, fuel, hours, and open issues logged today',
+                    'My Fleet, click a machine to see detail and the issue the operator reported',
+                    'Operators, see who is on shift and on which machine',
+                  ]).map((text, i) => (
+                    <div key={i} style={{ display:"flex", alignItems:"baseline", gap:10 }}>
+                      <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:13,
+                        background:"var(--nb-ink)", color:"#fff", width:22, height:22, borderRadius:"50%",
+                        display:"inline-flex", alignItems:"center", justifyContent:"center", flexShrink:0 }}>{i+2}</span>
+                      <span style={{ fontSize:17, lineHeight:1.65 }}>{text}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* What to expect */}
+              <div style={{ background:"var(--nb-bg-alt)", border:"2px solid var(--nb-ink)", borderRadius:4, padding:"16px 18px" }}>
+                <div style={{ display:"inline-flex", alignItems:"center", gap:6, marginBottom:8,
+                  background:"var(--nb-yellow)", color:"var(--nb-ink)", borderRadius:4,
+                  padding:"5px 13px", fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800,
+                  textTransform:"uppercase", letterSpacing:".09em", border:"2px solid var(--nb-ink)" }}>
+                  {lang === 'ru' ? '▲ Что ожидать' : '▲ What to expect'}
+                </div>
+                <div style={{ fontSize:17, lineHeight:1.7 }}>
+                  {lang === 'ru'
+                    ? 'Отправьте ещё одно сообщение в Консоли оператора, вернитесь сюда в течение 30 секунд, дашборд обновится в реальном времени. Это и есть полный цикл.'
+                    : 'Send another message in the Operator Console, come back here within 30 seconds, the dashboard updates in real time. That is the full loop.'}
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+    </div>
+  );
+}
+
 function App() {
   const [view, setView] = useState(() => {
-    try { return localStorage.getItem('vfm_active_view') || "owner"; } catch { return "owner"; }
+    try { return localStorage.getItem('vfm_active_view') || "howto"; } catch { return "howto"; }
   });
-  const [lang, setLang] = useState("ru");
+  const [lang, setLang] = useState(() => {
+    try { return localStorage.getItem('vfm_lang') || "ru"; } catch { return "ru"; }
+  });
   const [fleetSummary, setFleetSummary] = React.useState(null);
   const FleetIntelligence = window.__FleetIntelligence;
   const OperatorSandbox   = window.__OperatorSandbox;
@@ -1531,7 +1868,7 @@ function App() {
       <div style={{ height:"100vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
         {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 20px", height:58,
+        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 24px", height:72,
           background:"var(--nb-ink)", color:"#fff", borderBottom:"3px solid var(--nb-ink)", flexShrink:0 }}>
 
           {/* Logo + wordmark */}
@@ -1545,41 +1882,31 @@ function App() {
           {/* Divider */}
           <div style={{ width:2, height:28, background:"rgba(255,255,255,0.2)", borderRadius:1, margin:"0 4px", flexShrink:0 }} />
 
-          {/* View-switch buttons */}
-          {[
-            { id:"owner",    labelKey:"view_fleet",    icon:"▣" },
-            { id:"operator", labelKey:"view_operator", icon:"◎" },
-          ].map(vt => (
-            <button key={vt.id} className={`nb-view-btn${view === vt.id ? " active" : ""}`} onClick={() => { setView(vt.id); try { localStorage.setItem('vfm_active_view', vt.id); } catch {} }}>
-              <span style={{ fontSize:14 }}>{vt.icon}</span>
-              {T[vt.labelKey]}
-            </button>
-          ))}
+          {/* Nav buttons */}
+          <button
+            className={`nb-view-btn${view === 'howto' ? ' active' : ''}`}
+            onClick={() => { setView('howto'); try { localStorage.setItem('vfm_active_view', 'howto'); } catch {} }}>
+            ◈ Sandbox HOW-TOs
+          </button>
+          <button
+            className={`nb-view-btn${view === 'operator' ? ' active' : ''}`}
+            onClick={() => { setView('operator'); try { localStorage.setItem('vfm_active_view', 'operator'); } catch {} }}>
+            ◎ {T.view_operator}
+          </button>
+          <button
+            className={`nb-view-btn${view === 'owner' ? ' active' : ''}`}
+            onClick={() => { setView('owner'); try { localStorage.setItem('vfm_active_view', 'owner'); } catch {} }}>
+            ▣ {T.view_fleet}
+          </button>
 
           {/* Right side */}
           <div style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center" }}>
 
             {/* Language toggle */}
             <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.08)", border:"2px solid rgba(255,255,255,0.25)", borderRadius:4, padding:2 }}>
-              <button className={`nb-lang-btn${lang === 'ru' ? " active" : ""}`} onClick={() => setLang('ru')}>RU</button>
-              <button className={`nb-lang-btn${lang === 'en' ? " active" : ""}`} onClick={() => setLang('en')}>EN</button>
+              <button className={`nb-lang-btn${lang === 'ru' ? " active" : ""}`} onClick={() => { setLang('ru'); try { localStorage.setItem('vfm_lang', 'ru'); } catch {} }}>RU</button>
+              <button className={`nb-lang-btn${lang === 'en' ? " active" : ""}`} onClick={() => { setLang('en'); try { localStorage.setItem('vfm_lang', 'en'); } catch {} }}>EN</button>
             </div>
-
-            {/* Status badges */}
-            {(fleetSummary?.total_open_issues ?? 0) > 0 && (
-              <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"3px 10px",
-                border:"2px solid #fff", borderRadius:4, background:"var(--nb-coral)",
-                letterSpacing:".04em", boxShadow:"2px 2px 0 0 rgba(255,255,255,0.3)" }}>
-                {fleetSummary.total_open_issues} {lang === 'ru' ? 'проблем' : 'issues'}
-              </span>
-            )}
-            <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"3px 10px",
-              border:"2px solid #fff", borderRadius:4, background:"var(--nb-lime)", color:"var(--nb-ink)",
-              letterSpacing:".04em", boxShadow:"2px 2px 0 0 rgba(255,255,255,0.3)" }}>
-              {fleetSummary
-                ? `${fleetSummary.active_shifts ?? 0} ${lang === 'ru' ? 'смен активны' : 'shifts active'}`
-                : T.shifts_active_badge}
-            </span>
 
             {/* Owner avatar */}
             <div style={{ width:32, height:32, borderRadius:"50%", background:"var(--nb-paper)", border:"2px solid #fff",
@@ -1591,6 +1918,9 @@ function App() {
 
         {/* Content */}
         <div style={{ flex:1, overflow:"hidden", position:"relative" }}>
+          <div style={{ position:"absolute", inset:0, display:view==="howto"?"flex":"none", flexDirection:"column", overflow:"hidden" }}>
+            <HowToView lang={lang} onNavigate={setView} />
+          </div>
           <div style={{ position:"absolute", inset:0, display:view==="owner"?"flex":"none", flexDirection:"column", overflow:"hidden" }}>
             <FleetIntelligence active={view === "owner"} onSummaryUpdate={setFleetSummary} />
           </div>

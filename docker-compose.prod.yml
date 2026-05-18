@@ -3,24 +3,49 @@
 
 services:
   db:
+    image: postgres:15-alpine
+    container_name: superdoka_db
     restart: always
-    ports: []  # Remove external exposure — internal network only
+    environment:
+      POSTGRES_PASSWORD: logbuk123
+      POSTGRES_DB: logbuk_db
+    volumes:
+      - superdoka_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d logbuk_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
   redis:
+    image: redis:7-alpine
+    container_name: superdoka_redis
     restart: always
-    ports: []  # Remove external exposure — internal network only
+    volumes:
+      - superdoka_redis_data:/data
 
   api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: superdoka_api
     restart: always
     ports:
-      - "127.0.0.1:8000:8000"  # Localhost only — Caddy proxies from outside
+      - "127.0.0.1:8000:8000"
     volumes:
-      # Remove hot-reload mounts — code is baked into image on VPS
       - ./app/models:/app/models
       - ./static:/app/static
-    command: >
-      sh -c "env -u PYTHONPATH alembic upgrade head &&
-             uvicorn app.main:app --host 0.0.0.0 --port 8000
-             --workers 2 --log-level info"
     env_file:
       - .env.prod
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+    command: ["sh", "-c", "env -u PYTHONPATH alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --workers 2 --log-level info"]
+
+volumes:
+  superdoka_postgres_data:
+  superdoka_redis_data:
