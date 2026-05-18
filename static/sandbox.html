@@ -97,7 +97,7 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 
 .nb-label { font-family: var(--nb-mono); font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.12em; color: var(--nb-ink-soft); }
 
-#app-root { height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+#app-root { height: 100vh; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
 
 /* Header nav CTA buttons */
 .nb-view-btn {
@@ -128,6 +128,134 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 }
 .nb-inline-nav:hover { transform: translate(-1px,-1px); box-shadow: 4px 4px 0 0 var(--nb-ink) !important; }
 .nb-inline-nav:active { transform: translate(2px,2px); box-shadow: 1px 1px 0 0 var(--nb-ink) !important; }
+
+/* ─── Responsive ─────────────────────────────────────────── */
+@media (max-width: 900px) {
+  .nb-summary-grid { grid-template-columns: 1fr !important; gap: 14px !important; padding: 14px !important; }
+}
+
+@media (max-width: 768px) {
+  /* Header: 2-row layout, denser */
+  .nb-header { height: auto !important; flex-wrap: wrap; padding: 8px 12px 4px !important; gap: 6px !important; }
+  .nb-header-brand { flex: 1; min-width: 0; }
+  .nb-header-brand .nb-vfm-pill { display: none !important; }
+  .nb-header-nav { order: 3; width: 100%; display: flex; gap: 6px; overflow-x: auto;
+    padding-bottom: 4px; -webkit-overflow-scrolling: touch; }
+  .nb-header-nav::-webkit-scrollbar { display: none; }
+  .nb-view-btn { font-size: 12px !important; padding: 8px 12px !important; flex-shrink: 0;
+    box-shadow: 2px 2px 0 0 rgba(255,255,255,0.2) !important; }
+
+  /* KPI strip: 2×2 wrap, tighter */
+  .nb-kpi-strip { flex-wrap: wrap !important; }
+  .nb-kpi-block { flex: 1 1 48% !important; border-right: none !important;
+    border-bottom: 2px solid var(--nb-ink) !important; padding: 12px 14px !important; }
+  .nb-kpi-block:nth-child(odd) { border-right: 2px solid var(--nb-ink) !important; }
+  .nb-kpi-block:nth-last-child(-n+2) { border-bottom: none !important; }
+  .nb-kpi-block .nb-label { font-size: 9px !important; letter-spacing: .08em !important; }
+  .nb-kpi-block > div:nth-child(2) > span:first-child { font-size: 22px !important; }
+  .nb-kpi-block > div:nth-child(2) > span:nth-child(2) { font-size: 11px !important; }
+  .nb-kpi-block > div:last-child { font-size: 9.5px !important; }
+
+  /* Tab bar: horizontally scrollable */
+  .nb-tab-bar { overflow-x: auto !important; -webkit-overflow-scrolling: touch;
+    padding: 8px 12px !important; gap: 6px !important; }
+  .nb-tab-bar::-webkit-scrollbar { display: none; }
+  .nb-tab-bar button { flex-shrink: 0 !important; font-size: 12px !important;
+    padding: 7px 12px !important; }
+
+  /* Dialogs: full-width on small screens */
+  .nb-dialog { width: 96vw !important; max-height: 88vh !important; }
+
+  /* Summary tab: stack two columns + smaller cards */
+  .nb-summary-grid { grid-template-columns: 1fr !important; gap: 14px !important; padding: 14px !important; }
+
+  /* Howto cards: tighter padding on mobile */
+  .howto-page { padding: 14px !important; gap: 12px !important; }
+  .howto-page > div:first-child > div { font-size: 19px !important; line-height: 1.25 !important; }
+  .howto-card-body { padding: 16px 16px 12px !important; gap: 16px !important; }
+  .howto-card-body div[style*="font-size:17px"], .howto-card-body span[style*="font-size:17px"] { font-size: 14px !important; line-height: 1.55 !important; }
+  .howto-card-header { padding: 10px 14px !important; }
+  .howto-card-header span:last-child { font-size: 16px !important; }
+  .howto-grid { grid-template-columns: 1fr !important; gap: 14px !important; }
+
+  /* Operator/Fleet sidebar → horizontal scroll row on mobile */
+  .mobile-sidebar-row { max-height: none !important; overflow: hidden !important; }
+  .mobile-sidebar-row > .nb-scroll { display: flex !important; flex-direction: row !important;
+    overflow-x: auto !important; overflow-y: hidden !important; -webkit-overflow-scrolling: touch;
+    flex: 0 0 auto !important; }
+  .mobile-sidebar-row > .nb-scroll > div { flex: 0 0 auto !important; border-bottom: none !important;
+    border-right: 2px solid var(--nb-ink) !important; min-width: 180px; max-width: 230px; }
+  .mobile-sidebar-row > .nb-scroll > div:last-child { border-right: none !important; }
+
+  /* Operator chat panel cleanup */
+  .operator-shell { padding: 10px !important; gap: 10px !important; }
+  .operator-quicklog { padding: 8px 12px !important; gap: 6px !important; }
+  .operator-quicklog .nb-btn { font-size: 11px !important; padding: 6px 9px !important; }
+  .operator-quicklog .nb-label { font-size: 9px !important; }
+  .operator-header { padding: 12px 14px !important; gap: 8px !important; }
+  .operator-header-name { font-size: 16px !important; }
+  .operator-input-bar { padding: 10px 12px !important; gap: 8px !important; }
+  .operator-input-bar .nb-input { font-size: 14px !important; padding: 9px 11px !important; }
+  .operator-input-bar .nb-btn { padding: 9px 14px !important; }
+
+  /* Bubbles wider */
+  .bubble-op { max-width: 88% !important; }
+  .bubble-sys { max-width: 90% !important; }
+
+  /* Fleet detail header */
+  .fleet-detail-header { padding: 14px 16px !important; gap: 10px !important; }
+  .fleet-detail-reg { font-size: 26px !important; }
+  .fleet-detail-model { font-size: 11px !important; white-space: normal !important; }
+  .fleet-detail-op { font-size: 12px !important; white-space: normal !important; }
+
+  /* Log card text tighter */
+  .log-card-text { font-size: 13px !important; }
+  .log-card-time { min-width: 36px !important; font-size: 10px !important; }
+
+  /* Operator console: CSS-driven grid + sidebar cap */
+  .operator-grid { grid-template-columns: 1fr !important; grid-template-rows: auto 1fr !important; }
+  .operator-sidebar { max-height: 220px !important; border-right: none !important;
+    border-bottom: var(--nb-border-thick) !important; }
+
+  /* Fleet/Operators grids: single column */
+  .nb-fleet-grid { grid-template-columns: 1fr !important; }
+  .nb-operators-grid { grid-template-columns: 1fr !important; }
+}
+
+@media (max-width: 480px) {
+  .nb-view-btn { font-size: 11px !important; padding: 7px 10px !important; }
+  .nb-kpi-block { flex: 1 1 100% !important; border-right: none !important; }
+  .nb-kpi-block:nth-child(odd) { border-right: none !important; }
+  .nb-kpi-block:nth-last-child(-n+2) { border-bottom: 2px solid var(--nb-ink) !important; }
+  .nb-kpi-block:last-child { border-bottom: none !important; }
+
+  /* Header tighter */
+  .nb-header-brand > div:nth-child(2) { font-size: 14px !important; }
+  .nb-header > div:nth-child(2) { gap: 6px !important; }
+  .nb-header > div:nth-child(2) > div:last-child { width: 28px !important; height: 28px !important; }
+  .nb-lang-btn { font-size: 10px !important; padding: 4px 8px !important; }
+
+  /* Op header flex-wrap */
+  .operator-header { flex-wrap: wrap !important; }
+  .operator-header > div:first-child { flex-wrap: wrap !important; }
+  .operator-header .nb-btn { font-size: 11px !important; padding: 7px 10px !important; }
+
+  /* Fleet detail */
+  .fleet-detail-header { border-left-width: 6px !important; }
+  .fleet-detail-reg { font-size: 22px !important; }
+
+  /* Nav: icon-only on very small screens */
+  .nb-view-btn .nb-view-btn-label { display: none; }
+  .nb-view-btn { padding: 8px 10px !important; }
+
+  /* Sample messages: bottom sheet */
+  .nb-samples-dialog { width: 100vw !important; max-width: 100vw !important;
+    border-radius: 12px 12px 0 0 !important; border-left: none !important;
+    border-right: none !important; border-bottom: none !important;
+    position: fixed !important; bottom: 0 !important; top: auto !important;
+    max-height: 80vh !important; overflow-y: auto !important; }
+  .nb-samples-overlay { align-items: flex-end !important; padding: 0 !important; }
+}
 </style>
 </head>
 <body>
@@ -142,6 +270,7 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 window.__T = {
   ru: {
     vfm_label:           "виртуальный менеджер флота",
+    view_howto:          "Sandbox HOW-TOs",
     open_issue_badge:    "1 открытая проблема",
     shifts_active_badge: "3 смены активны",
     lang_toggle:         "EN",
@@ -242,6 +371,7 @@ window.__T = {
   },
   en: {
     vfm_label:           "virtual fleet manager",
+    view_howto:          "Sandbox HOW-TOs",
     open_issue_badge:    "1 open issue",
     shifts_active_badge: "3 shifts active",
     lang_toggle:         "RU",
@@ -344,6 +474,16 @@ window.__T = {
 
 window.__LangContext = React.createContext({ lang: 'ru', setLang: () => {} });
 window.__useLang = () => React.useContext(window.__LangContext);
+
+window.__useWindowWidth = function() {
+  const [w, setW] = React.useState(() => window.innerWidth);
+  React.useEffect(() => {
+    const handler = () => setW(window.innerWidth);
+    window.addEventListener('resize', handler);
+    return () => window.removeEventListener('resize', handler);
+  }, []);
+  return w;
+};
   </script>
 
   <!-- Fleet Intelligence component -->
@@ -470,7 +610,7 @@ function Avatar2({ initials, color, size=28 }) {
 function MetricBlock({ label, value, unit, sub, subTone, accent }) {
   const subColor = { good:"#0a7d2c", bad:"#a8201a", muted:"var(--nb-muted)" }[subTone || "muted"];
   return (
-    <div style={{ padding:"16px 18px", background:accent||"var(--nb-paper)", borderRight:"2px solid var(--nb-ink)", flex:1, minWidth:0 }}>
+    <div className="nb-kpi-block" style={{ padding:"16px 18px", background:accent||"var(--nb-paper)", borderRight:"2px solid var(--nb-ink)", flex:1, minWidth:0 }}>
       <div className="nb-label">{label}</div>
       <div style={{ display:"flex", alignItems:"baseline", gap:4, marginTop:6 }}>
         <span style={{ fontSize:30, fontWeight:800, lineHeight:1, letterSpacing:"-.02em" }}>{value}</span>
@@ -517,7 +657,7 @@ function SummaryTab({ fleetData, events }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
-      <div style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
+      <div className="nb-kpi-strip" style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
         <MetricBlock
           label={t('kpi_fleet_uptime')}
           value={loading ? "…" : `${activeShifts}/${totalMachines}`}
@@ -551,7 +691,7 @@ function SummaryTab({ fleetData, events }) {
         />
       </div>
 
-      <div className="nb-scroll" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:18, alignContent:"start" }}>
+      <div className="nb-scroll nb-summary-grid" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:18, alignContent:"start" }}>
         {/* VFM Insights — anomalies only */}
         <div style={{ gridColumn:"1 / -1" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
@@ -756,6 +896,7 @@ function MachineLogsTab({ events }) {
 
 function FleetTab({ fleetData }) {
   const { t, lang } = useLangT();
+  const isMobile = window.__useWindowWidth() < 768;
   const machines = fleetData?.machines || [];
   const [selected, setSelected] = React.useState(null);
   const [detail, setDetail] = React.useState(null);
@@ -782,8 +923,8 @@ function FleetTab({ fleetData }) {
   }
 
   return (
-    <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", height:"100%", overflow:"hidden" }}>
-      <div style={{ background:"var(--nb-bg-alt)", borderRight:"2px solid var(--nb-ink)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow: isMobile ? "auto" : "hidden" }}>
+      <div className={isMobile ? "mobile-sidebar-row" : ""} style={{ background:"var(--nb-bg-alt)", borderRight: isMobile ? "none" : "2px solid var(--nb-ink)", borderBottom: isMobile ? "2px solid var(--nb-ink)" : "none", display:"flex", flexDirection:"column", overflow:"hidden", maxHeight: isMobile ? 200 : "none" }}>
         <div style={{ padding:"12px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>
           <div className="nb-label">{lang === 'ru' ? `Мой флот · ${machines.length} машин` : `My Fleet · ${machines.length} machines`}</div>
         </div>
@@ -814,12 +955,12 @@ function FleetTab({ fleetData }) {
           </div>
         ) : (
           <>
-            <div style={{ padding:"20px 22px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-bg-alt)", borderLeft:"8px solid var(--nb-yellow)", display:"flex", alignItems:"flex-start", gap:16 }}>
+            <div className="fleet-detail-header" style={{ padding:"20px 22px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-bg-alt)", borderLeft:"8px solid var(--nb-yellow)", display:"flex", alignItems:"flex-start", gap:16 }}>
               <div style={{ minWidth:0, flex:1 }}>
                 <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".1em", marginBottom:4 }}>{detail.machine_type}</div>
-                <div style={{ fontSize:36, fontWeight:800, lineHeight:1, letterSpacing:"-.02em", whiteSpace:"nowrap" }}>{selected}</div>
-                <div style={{ fontFamily:"var(--nb-mono)", fontSize:12, marginTop:6, color:"var(--nb-ink-soft)", whiteSpace:"nowrap" }}>{detail.model}</div>
-                <div style={{ fontSize:13, fontWeight:600, marginTop:8, whiteSpace:"nowrap" }}>
+                <div className="fleet-detail-reg" style={{ fontSize:36, fontWeight:800, lineHeight:1, letterSpacing:"-.02em", whiteSpace:"nowrap" }}>{selected}</div>
+                <div className="fleet-detail-model" style={{ fontFamily:"var(--nb-mono)", fontSize:12, marginTop:6, color:"var(--nb-ink-soft)", whiteSpace:"nowrap" }}>{detail.model}</div>
+                <div className="fleet-detail-op" style={{ fontSize:13, fontWeight:600, marginTop:8, whiteSpace:"nowrap" }}>
                   {detail.active_operator_name ? t('operator_of', detail.active_operator_name) : t('no_active_op')}
                 </div>
               </div>
@@ -874,9 +1015,9 @@ function FleetTab({ fleetData }) {
                 <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
                   {[...detail.timeline].reverse().map((e, i, arr) => (
                     <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 14px", borderBottom:i<arr.length-1?"1.5px solid var(--nb-ink)":"none", background:"var(--nb-paper)" }}>
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, minWidth:42, paddingTop:2 }}>{e.time}</span>
+                      <span className="log-card-time" style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, minWidth:42, paddingTop:2 }}>{e.time}</span>
                       <div style={{ flex:1, minWidth:0 }}>
-                        <div style={{ fontSize:13, lineHeight:1.4 }}>{e.raw_text}</div>
+                        <div className="log-card-text" style={{ fontSize:13, lineHeight:1.4 }}>{e.raw_text}</div>
                         <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2 }}>{e.extracted}</div>
                       </div>
                     </div>
@@ -922,7 +1063,7 @@ function OperatorsTab({ fleetData, events }) {
 
   return (
     <div className="nb-scroll" style={{ flex:1, overflowY:"auto", padding:18 }}>
-      <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16, alignContent:"start" }}>
+      <div className="nb-operators-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16, alignContent:"start" }}>
         {operators.map(op => {
           const isOnShift = op.is_on_shift;
           const initials = op.initials || (op.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
@@ -1031,7 +1172,7 @@ function FleetIntelligence({ active, onSummaryUpdate }) {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
-      <div style={{ display:"flex", padding:"12px 22px", background:"var(--nb-bg)", borderBottom:"var(--nb-border-thick)", alignItems:"center", gap:8, flexShrink:0 }}>
+      <div className="nb-tab-bar" style={{ display:"flex", padding:"12px 22px", background:"var(--nb-bg)", borderBottom:"var(--nb-border-thick)", alignItems:"center", gap:8, flexShrink:0 }}>
         {tabs.map(tb => {
           const isActive = tb.id === tab;
           return (
@@ -1182,7 +1323,7 @@ function Bubble({ msg, opColor, lang }) {
   const text = msg.text || msg.textRu || "";
   if (msg.from === "op") {
     return (
-      <div style={{ alignSelf:"flex-end", maxWidth:"78%" }}>
+      <div className="bubble-op" style={{ alignSelf:"flex-end", maxWidth:"78%" }}>
         <div style={{ background:"var(--nb-lime)", border:"2px solid var(--nb-ink)", borderRadius:"12px 12px 4px 12px",
           padding:"8px 14px", boxShadow:"3px 3px 0 0 var(--nb-ink)", fontSize:13.5, fontWeight:600, lineHeight:1.45,
           color:"var(--nb-ink)" }}>{text}</div>
@@ -1196,7 +1337,7 @@ function Bubble({ msg, opColor, lang }) {
     bad:  { bg:"var(--nb-coral)",  color:"#fff",              border:"2px solid var(--nb-ink)",    shadow:"3px 3px 0 0 var(--nb-ink)" },
   }[msg.tone || "ok"];
   return (
-    <div style={{ alignSelf:"flex-start", maxWidth:"82%" }}>
+    <div className="bubble-sys" style={{ alignSelf:"flex-start", maxWidth:"82%" }}>
       <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:4 }}>
         <div style={{ width:22, height:22, borderRadius:"50%", background:"var(--nb-ink)", color:"#fff",
           display:"flex", alignItems:"center", justifyContent:"center",
@@ -1249,6 +1390,7 @@ function SampleChip({ msg, color, onClick }) {
 
 function OperatorSandbox() {
   const { t, lang } = useLangT2();
+  const isMobile = window.__useWindowWidth() < 768;
   const [operators, setOperators] = React.useState([]);
   const [currentOpId, setCurrentOpId] = React.useState(null);
   const [history, setHistory] = React.useState([]);
@@ -1429,10 +1571,10 @@ function OperatorSandbox() {
 
   return (
     <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden", background:"#cdc8be" }}>
-      <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", flex:1, minHeight:0, gap:20, padding:"32px 5%", background:"#cdc8be" }}>
+      <div className="operator-shell operator-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", flex:1, minHeight:0, gap: isMobile ? 12 : 20, padding: isMobile ? "14px 4%" : "32px 5%", background:"#cdc8be" }}>
 
         {/* Operator list */}
-        <div style={{ background:"var(--nb-bg-alt)", border:"var(--nb-border)", borderRadius:"var(--nb-radius)", boxShadow:"var(--nb-shadow)", display:"flex", flexDirection:"column", overflow:"hidden" }}>
+        <div className={`operator-sidebar${isMobile ? " mobile-sidebar-row" : ""}`} style={{ background:"var(--nb-bg-alt)", border:"var(--nb-border)", borderRadius:"var(--nb-radius)", boxShadow:"var(--nb-shadow)", display:"flex", flexDirection:"column", overflow:"hidden", maxHeight: isMobile ? 220 : "none" }}>
           <div style={{ padding:"12px 14px 10px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-yellow)" }}>
             <div className="nb-label">{t('ops_header')}</div>
             <div style={{ fontWeight:700, fontSize:18, marginTop:2 }}>
@@ -1457,11 +1599,11 @@ function OperatorSandbox() {
           <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", minWidth:0,
             border:"var(--nb-border)", borderRadius:"var(--nb-radius)", boxShadow:"var(--nb-shadow)" }}>
             {/* Operator header */}
-            <div style={{ padding:"14px 18px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
+            <div className="operator-header" style={{ padding:"14px 18px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", flexDirection:"column", gap:10, flexShrink:0 }}>
               <div style={{ display:"flex", alignItems:"center", gap:12 }}>
                 <Avatar initials={currentOp.initials || "?"} color="var(--nb-bg-alt)" size={42} />
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontSize:18, fontWeight:700, lineHeight:1.1 }}>{currentOp.name}</div>
+                  <div className="operator-header-name" style={{ fontSize:18, fontWeight:700, lineHeight:1.1 }}>{currentOp.name}</div>
                   <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)", marginTop:2, textTransform:"uppercase", letterSpacing:".06em" }}>
                     {(currentOp.machines || [])[0]?.machine_type || ''} · {currentOp.is_on_shift ? t('on_shift') : t('off_shift')}
                   </div>
@@ -1477,7 +1619,7 @@ function OperatorSandbox() {
             </div>
 
             {/* Quick buttons */}
-            <div style={{ padding:"10px 18px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
+            <div className="operator-quicklog" style={{ padding:"10px 18px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)", display:"flex", gap:8, flexWrap:"wrap", alignItems:"center", flexShrink:0 }}>
               <span className="nb-label" style={{ marginRight:4 }}>{t('quick_log_label')}</span>
               {quickButtons.map(q => (
                 <button key={q.label} className="nb-btn"
@@ -1516,7 +1658,7 @@ function OperatorSandbox() {
             </div>
 
             {/* Input bar */}
-            <div style={{ padding:"12px 18px", borderTop:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", gap:10, flexShrink:0 }}>
+            <div className="operator-input-bar" style={{ padding:"12px 18px", borderTop:"var(--nb-border-thick)", background:"var(--nb-paper)", display:"flex", gap:10, flexShrink:0 }}>
               <input className="nb-input" style={{ flex:1, opacity:apiLoading ? .5 : 1 }}
                 placeholder={t('input_placeholder', currentOp.name.split(" ")[0])}
                 value={draft}
@@ -1592,19 +1734,19 @@ function OperatorSandbox() {
           },
         ];
         return (
-          <div style={{ position:"fixed", inset:0, background:"rgba(20,23,26,0.55)", zIndex:200,
+          <div className="nb-samples-overlay" style={{ position:"fixed", inset:0, background:"rgba(20,23,26,0.55)", zIndex:200,
             display:"flex", alignItems:"center", justifyContent:"center" }}
             onClick={() => setShowSamples(false)}>
-            <div style={{ background:"var(--nb-paper)", border:"var(--nb-border-thick)", borderRadius:"var(--nb-radius)",
+            <div className="nb-samples-dialog" style={{ background:"var(--nb-paper)", border:"var(--nb-border-thick)", borderRadius:"var(--nb-radius)",
               boxShadow:"var(--nb-shadow-lg)", width:520, maxWidth:"94vw", maxHeight:"82vh", overflow:"hidden",
               display:"flex", flexDirection:"column" }}
               onClick={e => e.stopPropagation()}>
               <div style={{ padding:"12px 18px", background:"var(--nb-lime)", borderBottom:"2px solid var(--nb-ink)",
                 display:"flex", justifyContent:"space-between", alignItems:"center", flexShrink:0 }}>
-                <span style={{ fontWeight:800, fontSize:15 }}>
-                  {lang === 'ru' ? 'Примеры сообщений' : 'Sample Messages'}
+                <span style={{ fontWeight:800, fontSize:13 }}>
+                  {lang === 'ru' ? 'Выберите пример, нажмите чтобы скопировать' : 'Choose any sample message, click to copy'}
                 </span>
-                <button className="nb-btn" style={{ padding:"4px 10px", fontSize:11 }} onClick={() => setShowSamples(false)}>✕</button>
+                <button className="nb-btn" style={{ padding:"4px 10px", fontSize:11, flexShrink:0 }} onClick={() => setShowSamples(false)}>✕</button>
               </div>
               <div className="nb-scroll" style={{ overflowY:"auto", padding:"14px 18px", display:"flex", flexDirection:"column", gap:16 }}>
                 {categories.map((cat, ci) => (
@@ -1622,10 +1764,6 @@ function OperatorSandbox() {
                     </div>
                   </div>
                 ))}
-              </div>
-              <div style={{ padding:"9px 18px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)",
-                fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", flexShrink:0 }}>
-                {lang === 'ru' ? 'Нажмите на сообщение, скопируется в буфер' : 'Click a message to copy it to clipboard'}
               </div>
             </div>
           </div>
@@ -1645,9 +1783,10 @@ const LangContext = window.__LangContext;
 
 function HowToView({ lang, onNavigate }) {
   const T = window.__T[lang] || window.__T.ru;
+  const isMobile = window.__useWindowWidth() < 768;
 
   return (
-    <div style={{ flex:1, overflow:"hidden", padding:"20px 32px", display:"flex", flexDirection:"column", gap:16 }}>
+    <div className="nb-scroll howto-page" style={{ flex:1, overflowY:"auto", padding:"20px 32px", display:"flex", flexDirection:"column", gap:16 }}>
 
         {/* Title */}
         <div style={{ flexShrink:0 }}>
@@ -1657,11 +1796,11 @@ function HowToView({ lang, onNavigate }) {
         </div>
 
         {/* Two cards side-by-side */}
-        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:24, flex:1, minHeight:0, paddingBottom:8, paddingRight:8 }}>
+        <div className="howto-grid" style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:20, flex:1, minHeight:0, paddingBottom:8, paddingRight:8, overflowY:"hidden" }}>
 
           {/* Card 1 — Operator Chats */}
           <div className="nb-card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
-            <div style={{ background:"var(--nb-lime)", borderBottom:"2px solid var(--nb-ink)",
+            <div className="howto-card-header" style={{ background:"var(--nb-lime)", borderBottom:"2px solid var(--nb-ink)",
               padding:"12px 18px", display:"flex", alignItems:"center", gap:10 }}>
               <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:12,
                 background:"var(--nb-ink)", color:"#fff", width:26, height:26, borderRadius:"50%",
@@ -1671,7 +1810,7 @@ function HowToView({ lang, onNavigate }) {
               </span>
             </div>
 
-            <div className="nb-scroll" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
+            <div className="nb-scroll howto-card-body" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
 
               {/* What this is */}
               <div>
@@ -1753,7 +1892,7 @@ function HowToView({ lang, onNavigate }) {
 
           {/* Card 2 — Fleet Intelligence */}
           <div className="nb-card" style={{ padding:0, overflow:"hidden", display:"flex", flexDirection:"column", height:"100%", minHeight:0 }}>
-            <div style={{ background:"var(--nb-sky)", borderBottom:"2px solid var(--nb-ink)",
+            <div className="howto-card-header" style={{ background:"var(--nb-sky)", borderBottom:"2px solid var(--nb-ink)",
               padding:"12px 18px", display:"flex", alignItems:"center", gap:10 }}>
               <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:12,
                 background:"var(--nb-ink)", color:"#fff", width:26, height:26, borderRadius:"50%",
@@ -1762,7 +1901,7 @@ function HowToView({ lang, onNavigate }) {
                 {lang === 'ru' ? 'Для владельца' : "What's for Owner"}
               </span>
             </div>
-            <div className="nb-scroll" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
+            <div className="nb-scroll howto-card-body" style={{ padding:"22px 24px 18px", display:"flex", flexDirection:"column", gap:22, flex:1, overflowY:"auto", minHeight:0 }}>
 
               {/* What this is */}
               <div>
@@ -1868,47 +2007,46 @@ function App() {
       <div style={{ height:"100vh", display:"flex", flexDirection:"column", overflow:"hidden" }}>
 
         {/* Header */}
-        <div style={{ display:"flex", alignItems:"center", gap:12, padding:"0 24px", height:72,
+        <div className="nb-header" style={{ display:"flex", alignItems:"center", gap:12, padding:"0 24px", height:72,
           background:"var(--nb-ink)", color:"#fff", borderBottom:"3px solid var(--nb-ink)", flexShrink:0 }}>
 
           {/* Logo + wordmark */}
-          <div style={{ width:32, height:32, background:"var(--nb-lime)", border:"2px solid #fff", borderRadius:4,
-            display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"var(--nb-ink)", fontSize:15, flexShrink:0 }}>S</div>
-          <div style={{ fontWeight:800, fontSize:16, letterSpacing:"-.01em", whiteSpace:"nowrap" }}>SUPERDOKA</div>
-          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600, padding:"2px 8px",
-            border:"1.5px solid rgba(255,255,255,0.4)", borderRadius:999,
-            textTransform:"lowercase", letterSpacing:".04em", color:"rgba(255,255,255,0.6)", whiteSpace:"nowrap" }}>{T.vfm_label}</span>
+          <div className="nb-header-brand" style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
+            <div style={{ width:40, height:40, background:"var(--nb-lime)", border:"2px solid #fff", borderRadius:6,
+              display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"var(--nb-ink)", fontSize:18, flexShrink:0 }}>S</div>
+            <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", gap:4 }}>
+              <div style={{ fontWeight:800, fontSize:18, letterSpacing:".02em", whiteSpace:"nowrap", lineHeight:1 }}>SUPERDOKA</div>
+              <span className="nb-vfm-pill" style={{ fontFamily:"var(--nb-mono)", fontSize:8, fontWeight:500,
+                textTransform:"lowercase", letterSpacing:".05em", color:"rgba(255,255,255,0.38)",
+                whiteSpace:"nowrap" }}>{T.vfm_label}</span>
+            </div>
+          </div>
 
-          {/* Divider */}
-          <div style={{ width:2, height:28, background:"rgba(255,255,255,0.2)", borderRadius:1, margin:"0 4px", flexShrink:0 }} />
+          {/* Nav buttons — inline on desktop, second row on mobile */}
+          <div className="nb-header-nav" style={{ display:"flex", gap:16, alignItems:"center" }}>
+            <button
+              className={`nb-view-btn${view === 'howto' ? ' active' : ''}`}
+              onClick={() => { setView('howto'); try { localStorage.setItem('vfm_active_view', 'howto'); } catch {} }}>
+              ◈ <span className="nb-view-btn-label">{T.view_howto}</span>
+            </button>
+            <button
+              className={`nb-view-btn${view === 'operator' ? ' active' : ''}`}
+              onClick={() => { setView('operator'); try { localStorage.setItem('vfm_active_view', 'operator'); } catch {} }}>
+              ◎ <span className="nb-view-btn-label">{T.view_operator}</span>
+            </button>
+            <button
+              className={`nb-view-btn${view === 'owner' ? ' active' : ''}`}
+              onClick={() => { setView('owner'); try { localStorage.setItem('vfm_active_view', 'owner'); } catch {} }}>
+              ▣ <span className="nb-view-btn-label">{T.view_fleet}</span>
+            </button>
+          </div>
 
-          {/* Nav buttons */}
-          <button
-            className={`nb-view-btn${view === 'howto' ? ' active' : ''}`}
-            onClick={() => { setView('howto'); try { localStorage.setItem('vfm_active_view', 'howto'); } catch {} }}>
-            ◈ Sandbox HOW-TOs
-          </button>
-          <button
-            className={`nb-view-btn${view === 'operator' ? ' active' : ''}`}
-            onClick={() => { setView('operator'); try { localStorage.setItem('vfm_active_view', 'operator'); } catch {} }}>
-            ◎ {T.view_operator}
-          </button>
-          <button
-            className={`nb-view-btn${view === 'owner' ? ' active' : ''}`}
-            onClick={() => { setView('owner'); try { localStorage.setItem('vfm_active_view', 'owner'); } catch {} }}>
-            ▣ {T.view_fleet}
-          </button>
-
-          {/* Right side */}
-          <div style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center" }}>
-
-            {/* Language toggle */}
-            <div style={{ display:"flex", gap:2, background:"rgba(255,255,255,0.08)", border:"2px solid rgba(255,255,255,0.25)", borderRadius:4, padding:2 }}>
+          {/* Right side — lang + avatar, pushed to far right */}
+          <div style={{ marginLeft:"auto", display:"flex", gap:10, alignItems:"center", flexShrink:0 }}>
+            <div style={{ display:"flex", gap:4, background:"rgba(255,255,255,0.08)", border:"2px solid rgba(255,255,255,0.25)", borderRadius:4, padding:3 }}>
               <button className={`nb-lang-btn${lang === 'ru' ? " active" : ""}`} onClick={() => { setLang('ru'); try { localStorage.setItem('vfm_lang', 'ru'); } catch {} }}>RU</button>
               <button className={`nb-lang-btn${lang === 'en' ? " active" : ""}`} onClick={() => { setLang('en'); try { localStorage.setItem('vfm_lang', 'en'); } catch {} }}>EN</button>
             </div>
-
-            {/* Owner avatar */}
             <div style={{ width:32, height:32, borderRadius:"50%", background:"var(--nb-paper)", border:"2px solid #fff",
               display:"flex", alignItems:"center", justifyContent:"center",
               fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:10, color:"var(--nb-ink)",
