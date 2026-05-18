@@ -97,21 +97,13 @@ def create_app() -> FastAPI:
         )
         return JSONResponse(status_code=422, content={"detail": errors})
 
-    # Serve demo.html with no-cache so browsers always get the latest JS
+    @app.get("/", include_in_schema=False)
     @app.get("/sandbox", include_in_schema=False)
-    @app.get("/demo", include_in_schema=False)
-    async def serve_demo():
+    @app.get("/sandbox.html", include_in_schema=False)
+    async def serve_sandbox():
         from fastapi.responses import FileResponse
         return FileResponse(
-            "static/demo.html",
-            headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
-        )
-
-    @app.get("/neo", include_in_schema=False)
-    async def serve_neo():
-        from fastapi.responses import FileResponse
-        return FileResponse(
-            "static/logbuk-neo.html",
+            "static/sandbox.html",
             headers={"Cache-Control": "no-store, no-cache, must-revalidate"},
         )
 
