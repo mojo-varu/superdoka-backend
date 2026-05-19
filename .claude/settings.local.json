@@ -52,7 +52,21 @@
       "Bash(awk -F: '{print $1}')",
       "Bash(GIT_SSH_COMMAND=\"ssh -v\" git push -u origin main)",
       "Bash(ssh *)",
-      "Bash(echo \"Exit: $?\")"
+      "Bash(echo \"Exit: $?\")",
+      "Bash(echo \"exit: $?\")",
+      "Bash(kill 14099)",
+      "Bash(DATABASE_URL=\"sqlite+aiosqlite:///./logbuk_local.db\" poetry run uvicorn app.main:app --reload --port 8000)",
+      "Bash(kill 14729)",
+      "Bash(DATABASE_URL=sqlite+aiosqlite:///./logbuk_local.db poetry run python3 -c ' *)",
+      "Bash(sqlite3 *)",
+      "Bash(DATABASE_URL=\"sqlite+aiosqlite:///./vfm_dev.db\" CLASSIFIER_MODEL_PATH=\"\" NER_MODEL_PATH=\"\" LLM_PROVIDER=\"ollama\" LLM_API_KEY=\"\" poetry run uvicorn app.main:app --port 8000)",
+      "Bash(kill 19061)",
+      "Bash(DATABASE_URL=\"sqlite+aiosqlite:///./vfm_dev.db\" LLM_PROVIDER=\"ollama\" LLM_MODEL=\"qwen2.5:3b-instruct\" LLM_BASE_URL=\"http://localhost:11434\" poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level warning)",
+      "Bash(pkill -f \"uvicorn app.main:app\")",
+      "Bash(xargs kill -9)",
+      "Bash(DATABASE_URL=\"sqlite+aiosqlite:///./vfm_dev.db\" LLM_PROVIDER=\"ollama\" LLM_MODEL=\"qwen2.5:3b-instruct\" LLM_BASE_URL=\"http://localhost:11434\" poetry run uvicorn app.main:app --host 0.0.0.0 --port 8000)",
+      "Bash(ollama serve *)",
+      "Bash(echo \"Ollama PID: $!\")"
     ]
   }
 }

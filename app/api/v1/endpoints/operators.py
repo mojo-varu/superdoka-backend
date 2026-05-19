@@ -14,7 +14,7 @@ from enum import Enum
 from app.db.database import get_db
 from app.db.models import (
     User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport,
-    ActivityLog, ActiveSession, MachineState, TimelineEvent,
+    ActivityLog, ActiveSession, ConversationLog, MachineState, TimelineEvent,
 )
 from app.api.deps import get_any_platform_user, require_owner
 
@@ -237,4 +237,42 @@ async def operator_timeline(operator_id: int, limit: int = 50, db: AsyncSession 
             "created_at":  e.created_at.isoformat(),
         }
         for e, m in events
+    ]
+
+
+@operator_router.get("/{operator_id}/conversation")
+async def operator_conversation(
+    operator_id: int,
+    limit: int = 50,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Full conversation history for an operator from ConversationLog, newest first.
+    Returns in chronological order (oldest → newest) for the chat UI.
+    Covers all intents including non-operational turns.
+    """
+    op = (await db.execute(
+        select(User).where(User.id == operator_id, User.user_type == "OPERATOR")
+    )).scalar_one_or_none()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+
+    rows = (await db.execute(
+        select(ConversationLog)
+        .where(ConversationLog.operator_id == operator_id)
+        .order_by(ConversationLog.created_at.desc())
+        .limit(limit)
+    )).scalars().all()
+
+    return [
+        {
+            "id":         log.id,
+            "raw_text":   log.raw_text,
+            "intent":     log.intent,
+            "confidence": round(log.confidence, 3) if log.confidence is not None else None,
+            "vfm_reply":  log.vfm_reply,
+            "source":     log.source,
+            "created_at": log.created_at.isoformat(),
+        }
+        for log in reversed(rows)
     ]

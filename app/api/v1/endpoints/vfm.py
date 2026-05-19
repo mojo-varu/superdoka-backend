@@ -22,7 +22,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_async_session
-from app.db.models import ActiveSession, FuelLog, HoursLog, IssueReport, Machine, MachineAssignment, MachineState, TimelineEvent, User
+from app.db.models import ActiveSession, ConversationLog, FuelLog, HoursLog, IssueReport, Machine, MachineAssignment, MachineState, TimelineEvent, User
 from app.schemas.fleet_update import FleetUpdate, MessageSource, Modality
 from app.core.model_loader import models_ready
 from app.services.event_processor import event_processor
@@ -47,14 +47,15 @@ class VFMUpdateRequest(BaseModel):
 
 
 class VFMUpdateResponse(BaseModel):
-    reply:              str
-    intent:             str
-    confidence:         float
-    confidence_route:   str
-    timeline_event_id:  Optional[int]
-    needs_confirmation: bool
-    rules_fired:        list
-    errors:             list
+    reply:               str
+    intent:              str
+    confidence:          float
+    confidence_route:    str
+    timeline_event_id:   Optional[int]
+    conversation_log_id: Optional[int]
+    needs_confirmation:  bool
+    rules_fired:         list
+    errors:              list
 
 
 class CorrectionRequest(BaseModel):
@@ -87,15 +88,39 @@ async def process_update(
 
     processed = await event_processor.process(db, update)
 
+    # Unconditional conversation log — never breaks the reply
+    conv_log_id: Optional[int] = None
+    try:
+        intent_str  = processed.intent.value if hasattr(processed.intent, "value") else str(processed.intent or "")
+        policy_str  = processed.confidence_route.value if hasattr(processed.confidence_route, "value") else str(processed.confidence_route or "")
+        source_str  = processed.source.value if hasattr(processed.source, "value") else str(processed.source or "")
+        log_entry = ConversationLog(
+            operator_id   = processed.operator_db_id,
+            machine_id    = processed.machine_id,
+            raw_text      = processed.raw_text,
+            intent        = intent_str or None,
+            confidence    = processed.confidence or None,
+            policy_action = policy_str or None,
+            vfm_reply     = processed.reply_text or None,
+            source        = source_str or None,
+        )
+        db.add(log_entry)
+        await db.commit()
+        await db.refresh(log_entry)
+        conv_log_id = log_entry.id
+    except Exception as e:
+        logger.warning(f"ConversationLog write failed: {e}")
+
     return VFMUpdateResponse(
-        reply              = processed.reply_text or "",
-        intent             = processed.intent,
-        confidence         = round(processed.confidence, 3),
-        confidence_route   = processed.confidence_route,
-        timeline_event_id  = processed.timeline_event_id,
-        needs_confirmation = processed.needs_confirmation,
-        rules_fired        = processed.rules_fired,
-        errors             = processed.processing_errors,
+        reply                = processed.reply_text or "",
+        intent               = processed.intent,
+        confidence           = round(processed.confidence, 3),
+        confidence_route     = processed.confidence_route,
+        timeline_event_id    = processed.timeline_event_id,
+        conversation_log_id  = conv_log_id,
+        needs_confirmation   = processed.needs_confirmation,
+        rules_fired          = processed.rules_fired,
+        errors               = processed.processing_errors,
     )
 
 

@@ -1392,7 +1392,14 @@ function OperatorSandbox() {
   const { t, lang } = useLangT2();
   const isMobile = window.__useWindowWidth() < 768;
   const [operators, setOperators] = React.useState([]);
-  const [currentOpId, setCurrentOpId] = React.useState(null);
+  const [currentOpId, setCurrentOpId] = React.useState(() => {
+    const saved = localStorage.getItem('sandbox_op_id');
+    return saved ? parseInt(saved, 10) : null;
+  });
+  const selectOp = (id) => {
+    localStorage.setItem('sandbox_op_id', String(id));
+    setCurrentOpId(id);
+  };
   const [history, setHistory] = React.useState([]);
   const [draft, setDraft] = React.useState("");
   const [apiLoading, setApiLoading] = React.useState(false);
@@ -1412,25 +1419,34 @@ function OperatorSandbox() {
       .then(data => {
         const ops = Array.isArray(data) ? data : [];
         setOperators(ops);
-        if (ops.length > 0) setCurrentOpId(ops[0].id);
+        if (ops.length > 0) {
+          const saved = parseInt(localStorage.getItem('sandbox_op_id'), 10);
+          const valid = ops.find(o => o.id === saved);
+          selectOp(valid ? saved : ops[0].id);
+        }
         setOpsLoading(false);
       })
       .catch(() => setOpsLoading(false));
   }, []);
 
-  // Convert timeline events → conversation bubble pairs
+  // Convert conversation log entries → bubble pairs
   const eventsToHistory = (events) => {
     const bubbles = [];
     events.forEach(ev => {
-      bubbles.push({ key:`op-${ev.id}`, from:'op', text:ev.raw_text || '', ts:ev.time });
-      const reply = syntheticReply(ev);
-      const conf = ev.confidence != null && ev.confidence >= 0.70
-        ? `${Math.round(ev.confidence * 100)}%` : null;
-      bubbles.push({
-        key:`sys-${ev.id}`, from:'sys', tone:reply.tone,
-        text:reply.text, ts:ev.time,
-        ext:{ intent:ev.event_type, conf },
-      });
+      const ts = ev.created_at
+        ? new Date(ev.created_at).toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" })
+        : '';
+      bubbles.push({ key:`op-${ev.id}`, from:'op', text:ev.raw_text || '', ts });
+      if (ev.vfm_reply) {
+        const conf = ev.confidence != null && ev.confidence >= 0.70
+          ? `${Math.round(ev.confidence * 100)}%` : null;
+        const tone = ev.intent === 'issue_report' ? 'warn' : 'ok';
+        bubbles.push({
+          key:`sys-${ev.id}`, from:'sys', tone,
+          text: ev.vfm_reply, ts,
+          ext:{ intent: ev.intent || 'unknown', conf },
+        });
+      }
     });
     return bubbles;
   };
@@ -1443,7 +1459,7 @@ function OperatorSandbox() {
     if (pollRef.current) clearInterval(pollRef.current);
 
     const fetchTimeline = () =>
-      fetch(`/api/v1/operator/${currentOpId}/timeline?limit=50`)
+      fetch(`/api/v1/operator/${currentOpId}/conversation?limit=50`)
         .then(r => r.ok ? r.json() : []).catch(() => []);
 
     fetchTimeline().then(events => {
@@ -1500,9 +1516,10 @@ function OperatorSandbox() {
       const data = await res.json();
       const replyTs = new Date().toLocaleTimeString("ru", { hour:"2-digit", minute:"2-digit" });
 
-      // Skip this event in the 15s poll so we don't show it twice
-      if (data.timeline_event_id) {
-        lastEventIdRef.current = Math.max(lastEventIdRef.current, data.timeline_event_id);
+      // Skip this entry in the 15s poll so we don't show it twice
+      const skipId = data.conversation_log_id ?? data.timeline_event_id;
+      if (skipId) {
+        lastEventIdRef.current = Math.max(lastEventIdRef.current, skipId);
       }
 
       const tone = data.errors?.length > 0 ? 'warn'
@@ -1542,8 +1559,17 @@ function OperatorSandbox() {
     if (currentOp.is_on_shift) {
       send("Смена закончена");
     } else {
-      const m = (currentOp.machines || [])[0];
-      send(m ? TL.shift_start_msg(m.reg_number) : TL.shift_start_msg(''));
+      const machines = currentOp.machines || [];
+      if (machines.length === 1) {
+        send(`начинаю смену на ${machines[0].reg_number}`);
+      } else if (machines.length > 1) {
+        setDraft("начинаю смену на ");
+        setTimeout(() => {
+          document.querySelector('.operator-input-bar .nb-input')?.focus();
+        }, 50);
+      } else {
+        setDraft("начинаю смену на ");
+      }
     }
   };
 
@@ -1583,7 +1609,7 @@ function OperatorSandbox() {
           </div>
           <div className="nb-scroll" style={{ overflowY:"auto", flex:1 }}>
             {operators.map(o => (
-              <OperatorChip key={o.id} op={o} active={o.id === currentOpId} onClick={() => setCurrentOpId(o.id)} />
+              <OperatorChip key={o.id} op={o} active={o.id === currentOpId} onClick={() => selectOp(o.id)} />
             ))}
           </div>
           <div style={{ padding:"10px 12px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>

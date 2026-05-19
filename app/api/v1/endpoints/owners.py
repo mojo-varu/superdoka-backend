@@ -624,7 +624,6 @@ async def assign_operator(
     ]
 
 
-from app.core.ner_handler import NERHandler, is_model_ready, model_load_error, post_process_ner
 import traceback
 
 
@@ -640,6 +639,7 @@ class NERRequest(BaseModel):
 # Dependency
 # ================================
 def get_handler():
+    from app.core.ner_handler import NERHandler, is_model_ready, model_load_error
     if not is_model_ready():
         if model_load_error:
             raise HTTPException(status_code=500, detail=f"NER model failed to load: {model_load_error}")
@@ -651,10 +651,11 @@ def get_handler():
 # POST endpoint
 # ================================
 @owner_router.post("/extract")
-async def extract_entities(request: NERRequest, handler: NERHandler = Depends(get_handler)):
+async def extract_entities(request: NERRequest, handler=Depends(get_handler)):
     """
     Extract entities from text and return structured schema based on intent.
     """
+    from app.core.ner_handler import post_process_ner
     try:
         # 1️⃣ Predict raw NER
         ner_result = handler.predict(request.text)

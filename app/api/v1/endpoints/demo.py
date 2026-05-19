@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.database import get_db
 from app.db.models import (
-    ActiveSession, FuelLog, HoursLog, IssueReport,
+    ActiveSession, ConversationLog, FuelLog, HoursLog, IssueReport,
     Machine, MachineAssignment, MachineState,
     TimelineEvent, User,
 )
@@ -48,6 +48,7 @@ async def _wipe(db: AsyncSession) -> None:
         "active_sessions", "machine_states",
         "fuel_logs", "hours_logs", "issue_reports",
         "timeline_events", "activity_logs",
+        "conversation_log",
         "machine_assignments", "machines", "users",
     ]:
         await db.execute(text(f"TRUNCATE TABLE {table} RESTART IDENTITY CASCADE"))

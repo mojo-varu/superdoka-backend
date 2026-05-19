@@ -30,9 +30,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context_llm  import context_extract, ExtractionResult, _call_llm
 from app.core.text_normaliser import normalise_plate
+
+_PLATE_RE = re.compile(r'\b[А-ЯA-Zа-яa-z]\d{3}[А-ЯA-Zа-яa-z]{2}\d{2,3}\b')
 from app.db.models import (
     FuelLog, GroupMessage, HoursLog, IssueReport,
-    MachineState, MachineStatus, TimelineEvent, User,
+    Machine, MachineState, MachineStatus, TimelineEvent, User,
     ProcessingStatus,
 )
 from app.schemas.fleet_update import (
@@ -58,6 +60,9 @@ REPLY_TEMPLATES = {
 
 
 _CRITICAL_KEYWORDS = {"пожар", "горит", "огонь", "fire", "пожара", "горим"}
+
+# Only these intents produce a TimelineEvent row. All others are conversational.
+OPERATIONAL_INTENTS = {"shift_start", "shift_end", "fuel_log", "hours_log", "issue_report"}
 
 REAL_FIELDS = {
     "fuel_volume", "hours", "reg_number", "description",
@@ -90,8 +95,14 @@ class EventProcessor:
             # Step 1 — resolve operator DB record
             await self._resolve_operator(db, update)
 
+            # Step 1b — fetch active session early so intelligence can gate correctly
+            active_session = None
+            if update.operator_db_id:
+                active_session = await session_service.get_active_session(
+                    db, update.operator_db_id
+                )
             # Step 2 — Intelligence: context-gated LLM extraction
-            await self._run_intelligence(db, update, None)
+            await self._run_intelligence(db, update, active_session)
 
             # Step 3 — Agency: session + machine resolution
             await self._resolve_session(db, update)
@@ -104,11 +115,14 @@ class EventProcessor:
 
             # Step 5 — require machine context for all logging intents
             if not update.has_active_session:
-                update.reply_text = REPLY_TEMPLATES["no_session"]
+                if not update.reply_text:
+                    update.reply_text = REPLY_TEMPLATES["no_session"]
                 return update
 
-            # Step 6 — write events to DB (atomic)
-            await self._write_events(db, update)
+            # Step 6 — write events to DB (operational intents only)
+            intent_val = getattr(update.intent, "value", update.intent)
+            if intent_val in OPERATIONAL_INTENTS:
+                await self._write_events(db, update)
 
             # Step 7 — evaluate rules
             await self._evaluate_rules(db, update)
@@ -195,7 +209,13 @@ class EventProcessor:
         )
 
         if machine_id is None:
-            return   # session not found — caller handles
+            if reason == "ambiguous_multi_machine":
+                machines = await session_service.get_assigned_machines(
+                    db, update.operator_db_id
+                )
+                regs = " или ".join(m.alias or m.reg_number for m in machines)
+                update.reply_text = f"На какой машине работаешь? Уточни: {regs}"
+            return
 
         # Fetch MachineState for context
         state_result = await db.execute(
@@ -223,14 +243,65 @@ class EventProcessor:
     async def _handle_shift_start(
         self, db: AsyncSession, update: FleetUpdate
     ) -> FleetUpdate:
-        reg = update.reg_number or update.entities.get("reg_number")
-        if not reg:
-            update.reply_text = "На какой машине начинаете смену? Укажите номер."
+        # Fix 2 — block if shift already active
+        existing_machine_id = await session_service.get_machine_id_for_operator(
+            db, update.operator_db_id
+        )
+        if existing_machine_id:
+            result = await db.execute(
+                select(Machine).where(Machine.id == existing_machine_id)
+            )
+            existing_machine = result.scalar_one_or_none()
+            machine_name = (
+                (existing_machine.alias or existing_machine.reg_number)
+                if existing_machine else str(existing_machine_id)
+            )
+            update.reply_text = (
+                f"Смена уже открыта на {machine_name}. "
+                f"Чтобы сменить машину — сначала заверши текущую смену."
+            )
             return update
+
+        reg = update.reg_number or update.entities.get("reg_number")
+        if reg:
+            reg = normalise_plate(reg)
+            # LLM sometimes returns just the first letter of a plate (e.g. "B" for "В542КХ77").
+            # If the value isn't plate-shaped, scan the raw message for a full plate token.
+            # If the scan also fails, discard reg so the single-assignment path takes over —
+            # a single character like "В" must never reach alias substring matching, where
+            # "в" would falsely match inside "экскаватор" and return the wrong machine.
+            if not _PLATE_RE.fullmatch(reg):
+                plates = _PLATE_RE.findall(update.raw_text or "")
+                reg = normalise_plate(plates[0]) if plates else None
+        if not reg:
+            assigned = await session_service.get_assigned_machines(
+                db, update.operator_db_id
+            )
+            if len(assigned) == 1:
+                reg = assigned[0].reg_number
+            elif len(assigned) > 1:
+                regs = " или ".join(m.alias or m.reg_number for m in assigned)
+                update.reply_text = f"На какой машине начинаешь смену? Уточни: {regs}"
+                return update
+            else:
+                update.reply_text = "На какой машине начинаете смену? Укажите номер."
+                return update
 
         machine = await session_service._resolve_machine_by_name(db, reg)
         if not machine:
             update.reply_text = f"Машина «{reg}» не найдена. Проверьте номер или позывной."
+            return update
+
+        # Fix 1 — block shift on unassigned machine
+        assigned = await session_service.get_assigned_machines(db, update.operator_db_id)
+        assigned_ids = {m.id for m in assigned}
+        if machine.id not in assigned_ids:
+            regs = ", ".join(m.alias or m.reg_number for m in assigned) if assigned else "—"
+            display = machine.alias or machine.reg_number
+            update.reply_text = (
+                f"«{display}» не ваша машина. "
+                f"Ваши машины: {regs}. Начните смену на одной из них."
+            )
             return update
 
         await session_service.start_shift(

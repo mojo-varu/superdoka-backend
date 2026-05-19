@@ -552,6 +552,37 @@ class TimelineEvent(Base):
 
 
 # ---------------------------------------------------------------------------
+# ConversationLog — append-only log of every operator message and VFM reply
+# ---------------------------------------------------------------------------
+
+class ConversationLog(Base):
+    """
+    Append-only log of every operator message and VFM reply.
+    This is the primary input for the replay harness.
+    Covers all intents — operational and non-operational.
+    Never modified after write.
+    """
+    __tablename__ = "conversation_log"
+
+    id            = Column(Integer, primary_key=True, autoincrement=True)
+    operator_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    machine_id    = Column(Integer, ForeignKey("machines.id"), nullable=True)
+    raw_text      = Column(Text, nullable=False)
+    intent        = Column(String(64), nullable=True)
+    confidence    = Column(Float, nullable=True)
+    policy_action = Column(String(32), nullable=True)   # CONFIRM | CLARIFY | ALERT | NUDGE | ESCALATE
+    task_type     = Column(String(8),  nullable=True)   # T1–T8
+    vfm_reply     = Column(Text, nullable=True)
+    source        = Column(String(32), nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
+
+    __table_args__ = (
+        Index("idx_conv_log_operator_date", "operator_id", "created_at"),
+        {"extend_existing": True},
+    )
+
+
+# ---------------------------------------------------------------------------
 # NEW MODEL 3: ActiveSession — current shift binding (the Agency unlock)
 # ---------------------------------------------------------------------------
 

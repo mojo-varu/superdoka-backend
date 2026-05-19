@@ -40,6 +40,13 @@ logger = logging.getLogger(__name__)
 CONF_AUTO    = 0.85   # write without asking
 CONF_CONFIRM = 0.60   # write but echo back for confirmation
 
+# ── Shift gate helpers ────────────────────────────────────────────────────────
+_REG_PATTERN = re.compile(r'\b[А-ЯA-Za-zа-я]\d{3}[А-ЯA-Za-zа-я]{2}\d{2,3}\b')
+_SHIFT_START_RE = re.compile(
+    r'\b(начинаю|начало|начинаем|открываю|открываем|приступаю)\b',
+    re.IGNORECASE,
+)
+
 # ── Non-operational intents — no extraction, agency handles directly ───────────
 NON_OPERATIONAL = {"off_topic", "clarification_response", "status_update"}
 
@@ -353,6 +360,21 @@ async def _call_agency_llm(system: str, user: str) -> str:
         return data["content"][0]["text"].strip()
 
 
+def _is_shift_start(text: str) -> bool:
+    """Lightweight keyword check — allows shift-start messages through the no-session gate."""
+    return bool(_SHIFT_START_RE.search(text))
+
+
+def _build_no_shift_reply(text: str, example_reg: Optional[str] = None) -> str:
+    """Deterministic reply when operator has no open shift and message is not a shift start."""
+    m = _REG_PATTERN.search(text)
+    if m:
+        reg = m.group().upper()
+        return f"Смена на {reg} не открыта. Чтобы начать: «начинаю смену на {reg}»"
+    hint = example_reg or "А771МР77"
+    return f"Смена не открыта. Сначала начни смену — напиши например: «начинаю смену на {hint}»"
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 async def run_intelligence(
@@ -388,6 +410,23 @@ async def run_intelligence(
             result.errors.append(str(e))
             result.clarification = "Понял. Записываю."
         return result
+
+    if continuity == "no_session" and not is_proactive:
+        if not _is_shift_start(text):
+            result.intent           = "no_session"
+            result.confidence       = 1.0
+            result.confidence_route = "auto"
+            example_reg = None
+            if db and getattr(update, "operator_db_id", None):
+                try:
+                    from app.services.session_service import session_service as _ss
+                    assigned = await _ss.get_assigned_machines(db, update.operator_db_id)
+                    if assigned:
+                        example_reg = assigned[0].alias or assigned[0].reg_number
+                except Exception:
+                    pass
+            result.clarification    = _build_no_shift_reply(text, example_reg)
+            return result
 
     # Build context graph — living machine memory
     if session and getattr(session, 'machine_id', None) and getattr(session, 'operator_id', None):

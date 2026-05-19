@@ -28,7 +28,8 @@ from typing import Optional
 from sqlalchemy import select, delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db.models import ActiveSession, Machine, MachineState, MachineStatus, ShiftState
+from app.core.text_normaliser import normalise_plate
+from app.db.models import ActiveSession, Machine, MachineAssignment, MachineState, MachineStatus, ShiftState
 
 logger = logging.getLogger(__name__)
 
@@ -279,6 +280,21 @@ class SessionService:
         if status == MachineStatus.WORKING:
             state.shift_started_at = datetime.utcnow()
 
+    async def get_assigned_machines(
+        self, db: AsyncSession, operator_id: int
+    ) -> list:
+        """Return active Machine records assigned to this operator."""
+        result = await db.execute(
+            select(Machine)
+            .join(MachineAssignment, MachineAssignment.machine_id == Machine.id)
+            .where(
+                MachineAssignment.operator_id == operator_id,
+                MachineAssignment.is_active   == True,
+                Machine.is_active             == True,
+            )
+        )
+        return result.scalars().all()
+
     async def resolve_machine_for_message(
         self,
         db:          AsyncSession,
@@ -291,9 +307,11 @@ class SessionService:
         Returns (machine_id, routing_reason):
           - machine_id: int if resolved, None if unresolved
           - routing_reason: string explaining how it was resolved
-            "session"    — from active session (zero-friction path)
-            "reg_number" — operator supplied it in message
-            "none"       — cannot resolve, must ask operator
+            "session"              — from active session (zero-friction path)
+            "name"                 — operator supplied reg/alias in message
+            "single_assignment"    — operator has exactly one assigned machine
+            "ambiguous_multi_machine" — multiple assignments, no reg supplied
+            "none"                 — no assignments at all
         """
         # Priority 1: active session (zero-friction)
         machine_id = await self.get_machine_id_for_operator(db, operator_id)
@@ -305,6 +323,13 @@ class SessionService:
             machine = await self._resolve_machine_by_name(db, reg_number)
             if machine:
                 return machine.id, "name"
+
+        # Priority 3: assigned machines — resolve silently if one, ask if many
+        assigned = await self.get_assigned_machines(db, operator_id)
+        if len(assigned) == 1:
+            return assigned[0].id, "single_assignment"
+        if len(assigned) > 1:
+            return None, "ambiguous_multi_machine"
 
         # Cannot resolve
         return None, "none"
@@ -319,6 +344,7 @@ class SessionService:
           3. Substring match on alias    (case-insensitive) — "комацу" hits "Комацу-7"
         Returns the first Machine found, or None.
         """
+        name = normalise_plate(name)
         # Step 1: exact reg_number
         result = await db.execute(
             select(Machine).where(
