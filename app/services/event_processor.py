@@ -448,9 +448,10 @@ class EventProcessor:
         self, db: AsyncSession, update: FleetUpdate, event_id: int
     ) -> None:
         desc = (
-            update.entities.get("description")
+            update.raw_text
+            or update.entities.get("description")
             or update.entities.get("notes")
-            or update.raw_text[:200]
+            or ""
         )
         priority = self._severity_to_priority(update.severity)
         report = IssueReport(

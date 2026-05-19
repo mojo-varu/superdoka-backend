@@ -256,6 +256,36 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
     max-height: 80vh !important; overflow-y: auto !important; }
   .nb-samples-overlay { align-items: flex-end !important; padding: 0 !important; }
 }
+
+@keyframes nb-shake {
+  0%, 70%, 100% { transform: translate(0, 0) rotate(0deg); }
+  72%  { transform: translate(-3px, 0) rotate(-1.5deg); }
+  74%  { transform: translate(3px, 0) rotate(1.5deg); }
+  76%  { transform: translate(-3px, 0) rotate(-1.5deg); }
+  78%  { transform: translate(3px, 0) rotate(1.5deg); }
+  80%  { transform: translate(-2px, 0) rotate(0deg); }
+  82%  { transform: translate(2px, 0) rotate(0deg); }
+  84%  { transform: translate(0, 0) rotate(0deg); }
+}
+
+.nb-shake {
+  animation: nb-shake 4s ease-in-out infinite;
+  display: inline-block;
+}
+
+@keyframes nb-stamp {
+  0%, 60%, 100% { transform: scale(1);     box-shadow: 3px 3px 0 0 #14171a; }
+  65%            { transform: scale(0.93);  box-shadow: 1px 1px 0 0 #14171a; }
+  72%            { transform: scale(1.04);  box-shadow: 5px 5px 0 0 #14171a; }
+  80%            { transform: scale(0.98);  box-shadow: 3px 3px 0 0 #14171a; }
+  88%            { transform: scale(1);     box-shadow: 3px 3px 0 0 #14171a; }
+}
+
+.nb-stamp {
+  animation: nb-stamp 3.5s ease-in-out infinite;
+  display: inline-block;
+  transform-origin: center;
+}
 </style>
 </head>
 <body>
@@ -270,7 +300,7 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
 window.__T = {
   ru: {
     vfm_label:           "виртуальный менеджер флота",
-    view_howto:          "Sandbox HOW-TOs",
+    view_howto:          "Sandbox HOW-TOs (Start Here)",
     open_issue_badge:    "1 открытая проблема",
     shifts_active_badge: "3 смены активны",
     lang_toggle:         "EN",
@@ -371,7 +401,7 @@ window.__T = {
   },
   en: {
     vfm_label:           "virtual fleet manager",
-    view_howto:          "Sandbox HOW-TOs",
+    view_howto:          "Sandbox HOW-TOs (Start Here)",
     open_issue_badge:    "1 open issue",
     shifts_active_badge: "3 shifts active",
     lang_toggle:         "RU",
@@ -1405,6 +1435,7 @@ function OperatorSandbox() {
   const [apiLoading, setApiLoading] = React.useState(false);
   const [opsLoading, setOpsLoading] = React.useState(true);
   const [showSamples, setShowSamples] = React.useState(false);
+  const [samplesAnimPaused, setSamplesAnimPaused] = React.useState(false);
   const msgsRef = React.useRef(null);
   const lastEventIdRef = React.useRef(0);
   const pollRef = React.useRef(null);
@@ -1613,8 +1644,10 @@ function OperatorSandbox() {
             ))}
           </div>
           <div style={{ padding:"10px 12px", borderTop:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>
-            <button className="nb-btn" style={{ width:"100%", justifyContent:"center", fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, letterSpacing:".06em" }}
-              onClick={() => setShowSamples(true)}>
+            <button
+              className={`nb-btn yellow${samplesAnimPaused ? '' : ' nb-shake'}`}
+              style={{ width:"100%", justifyContent:"center", fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, letterSpacing:".06em" }}
+              onClick={() => { setSamplesAnimPaused(true); setShowSamples(true); }}>
               {lang === 'ru' ? 'ПОСМОТРЕТЬ ПРИМЕРЫ' : 'CHECK SAMPLE MESSAGES'}
             </button>
           </div>
@@ -1710,8 +1743,12 @@ function OperatorSandbox() {
             color: '#d8eecc', borderColor: 'var(--nb-mint)',
             msgs: [
               "Всё, начинаем. А771МР77, я на месте",
-              "Принял машину В542КУ77, приступаю",
+              "Принял машину В542КХ77, приступаю",
               "Смена пошла, Е318ТО77",
+              "На месте, завожу А771МР77",
+              "Приступил к смене, машина В542КХ77",
+              "Начинаю, всё нормально, А771МР77 в порядке",
+              "Вышел на смену, принял К007МР50",
             ],
           },
           {
@@ -1721,6 +1758,10 @@ function OperatorSandbox() {
               "Залили 150 литров, бак полный",
               "Заправились на 80л перед выездом",
               "Дозаправка 60 литров в обед",
+              "Топливо залил, 120 литров",
+              "Заправка 95л, выезжаю",
+              "Долил 45 литров, бак был почти пустой",
+              "200 литров залили с утра",
             ],
           },
           {
@@ -1729,6 +1770,11 @@ function OperatorSandbox() {
             msgs: [
               "Отработал 6 часов, всё штатно",
               "Часы: 4.5, пока без замечаний",
+              "Наработка за смену — 7 часов",
+              "Отмотал 5 часов, продолжаю",
+              "8 часов отработал, машина держится",
+              "Часов шесть наработал примерно",
+              "Смена 9 часов, усталость есть но всё нормально",
             ],
           },
           {
@@ -1739,6 +1785,9 @@ function OperatorSandbox() {
               "Движок греется выше нормы, слежу",
               "Тормоза мягкие стали, надо смотреть",
               "Треск какой-то при повороте, не пойму откуда",
+              "Масло уходит, капает с левой стороны",
+              "Стрела туго идёт, гидравлика не тянет как раньше",
+              "Аккумулятор слабый, завёлся со второго раза",
             ],
           },
           {
@@ -1748,6 +1797,10 @@ function OperatorSandbox() {
               "Обед взял, вернусь через полчаса",
               "Дорогу перекрыли, стоим",
               "Всё нормально у нас",
+              "Погода плохая, видимость низкая",
+              "Напарник заболел, один работаю",
+              "Грунт мёрзлый, копаем медленнее",
+              "Перерыв технический, минут двадцать",
             ],
           },
           {
@@ -1756,6 +1809,11 @@ function OperatorSandbox() {
             msgs: [
               "Закончил, сдаю машину",
               "Смена закрыта, до завтра",
+              "Всё, финиш, машина на стоянке",
+              "Сдал машину, ухожу",
+              "Смена окончена, замечаний по сдаче нет",
+              "Закрываю смену, завтра в то же время",
+              "Всё на сегодня, машина в порядке",
             ],
           },
         ];
@@ -1882,11 +1940,11 @@ function HowToView({ lang, onNavigate }) {
                     </span>
                   </div>
                   {(lang === 'ru' ? [
-                    'Выберите любого оператора из списка слева',
-                    'Откройте смену и отправьте сообщение, примеры есть прямо в консоли',
+                    'Выберите любого оператора из списка слева.',
+                    'Откройте смену и отправьте сообщение, примеры есть прямо в консоли.',
                   ] : [
-                    'Select any operator from the left panel',
-                    'Start a shift and send a message, sample messages are in the console',
+                    'Select any operator from the left panel.',
+                    'Start a shift and send a message, sample messages are in the console.',
                   ]).map((text, i) => (
                     <div key={i} style={{ display:"flex", alignItems:"baseline", gap:10 }}>
                       <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:13,
@@ -1973,13 +2031,15 @@ function HowToView({ lang, onNavigate }) {
                     </span>
                   </div>
                   {(lang === 'ru' ? [
-                    'Откройте вкладку Сводка, топливо, часы и открытые проблемы за сегодня',
-                    'Мой флот, нажмите на машину, чтобы увидеть детали и проблему от оператора',
-                    'Операторы, кто на смене и на какой машине',
+                    'Откройте вкладку Сводка, топливо, часы и открытые проблемы за сегодня.',
+                    'Вкладка «Журнал машин», полная история сообщений и событий по каждой машине, с меткой времени и типом операции.',
+                    'Мой флот, нажмите на машину, чтобы увидеть детали и проблему от оператора.',
+                    'Операторы, кто на смене и на какой машине.',
                   ] : [
-                    'Check the Summary tab, fuel, hours, and open issues logged today',
-                    'My Fleet, click a machine to see detail and the issue the operator reported',
-                    'Operators, see who is on shift and on which machine',
+                    'Check the Summary tab, fuel, hours, and open issues logged today.',
+                    'Open Machine Log, full timestamped history of every event and message per machine, with intent labels.',
+                    'My Fleet, click a machine to see detail and the issue the operator reported.',
+                    'Operators, see who is on shift and on which machine.',
                   ]).map((text, i) => (
                     <div key={i} style={{ display:"flex", alignItems:"baseline", gap:10 }}>
                       <span style={{ fontFamily:"var(--nb-mono)", fontWeight:800, fontSize:13,
@@ -2002,7 +2062,7 @@ function HowToView({ lang, onNavigate }) {
                 <div style={{ fontSize:17, lineHeight:1.7 }}>
                   {lang === 'ru'
                     ? 'Отправьте ещё одно сообщение в Консоли оператора, вернитесь сюда в течение 30 секунд, дашборд обновится в реальном времени. Это и есть полный цикл.'
-                    : 'Send another message in the Operator Console, come back here within 30 seconds, the dashboard updates in real time. That is the full loop.'}
+                    : 'Send another message in the Machine Operator Console, come back here within 30 seconds, the dashboard updates in real time. That is the full loop.'}
                 </div>
               </div>
 
