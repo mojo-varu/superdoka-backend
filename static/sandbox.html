@@ -359,7 +359,7 @@ window.__T = {
     no_active_op:        "НЕТ АКТИВНОГО ОПЕРАТОРА",
 
     ops_header:          "Операторы",
-    ops_count:           "4 в команде",
+    ops_count:           "В НАРЯДЕ",
     sandbox_mode:        "РЕЖИМ ПЕСОЧНИЦЫ",
     sandbox_hint:        "Вводите текст от имени оператора. VFM определяет намерение и поля данных.",
     quick_log_label:     "Быстрый ввод",
@@ -460,7 +460,7 @@ window.__T = {
     no_active_op:        "NO ACTIVE OPERATOR",
 
     ops_header:          "Operators",
-    ops_count:           "4 on roster",
+    ops_count:           "ON DUTY",
     sandbox_mode:        "SANDBOX MODE",
     sandbox_hint:        "Type as the selected operator. VFM extracts intent + fields.",
     quick_log_label:     "Quick log",
@@ -1635,7 +1635,7 @@ function OperatorSandbox() {
           <div style={{ padding:"12px 14px 10px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-yellow)" }}>
             <div className="nb-label">{t('ops_header')}</div>
             <div style={{ fontWeight:700, fontSize:18, marginTop:2 }}>
-              {operators.length} {lang === 'ru' ? 'в команде' : 'on roster'}
+              {operators.length} {lang === 'ru' ? 'В НАРЯДЕ' : 'ON DUTY'}
             </div>
           </div>
           <div className="nb-scroll" style={{ overflowY:"auto", flex:1 }}>
@@ -2097,11 +2097,17 @@ function App() {
           background:"var(--nb-ink)", color:"#fff", borderBottom:"3px solid var(--nb-ink)", flexShrink:0 }}>
 
           {/* Logo + wordmark */}
-          <div className="nb-header-brand" style={{ display:"flex", alignItems:"center", gap:10, flexShrink:0 }}>
-            <div style={{ width:40, height:40, background:"var(--nb-lime)", border:"2px solid #fff", borderRadius:6,
-              display:"flex", alignItems:"center", justifyContent:"center", fontWeight:800, color:"var(--nb-ink)", fontSize:18, flexShrink:0 }}>S</div>
+          <div className="nb-header-brand" style={{ display:"flex", alignItems:"center", gap:6, flexShrink:0 }}>
+            <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg"
+              role="img" aria-label="SuperDoka"
+              style={{ width:40, height:40, flexShrink:0 }}>
+              <path d="M 152 56 A 60 60 0 1 0 152 144" stroke="#c96442" strokeWidth="22"/>
+              <polygon points="110,76 150,100 110,124" fill="#c96442"/>
+            </svg>
             <div style={{ display:"flex", flexDirection:"column", justifyContent:"center", gap:4 }}>
-              <div style={{ fontWeight:800, fontSize:18, letterSpacing:".02em", whiteSpace:"nowrap", lineHeight:1 }}>SUPERDOKA</div>
+              <div style={{ fontWeight:800, fontSize:18, letterSpacing:".02em", whiteSpace:"nowrap", lineHeight:1 }}>
+                Super<em style={{ fontStyle:"italic", color:"#c96442" }}>Doka</em>
+              </div>
               <span className="nb-vfm-pill" style={{ fontFamily:"var(--nb-mono)", fontSize:8, fontWeight:500,
                 textTransform:"lowercase", letterSpacing:".05em", color:"rgba(255,255,255,0.38)",
                 whiteSpace:"nowrap" }}>{T.vfm_label}</span>

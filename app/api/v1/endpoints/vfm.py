@@ -380,7 +380,7 @@ async def sandbox_operators(
     Used by the sandbox UI to populate the operator selector without hardcoding anything.
     """
     users_result = await db.execute(
-        select(User).where(User.user_type == "OPERATOR", User.is_active == True).order_by(User.id)
+        select(User).where(User.user_type == "OPERATOR", User.is_active == True).order_by(User.name)
     )
     users = users_result.scalars().all()
 
