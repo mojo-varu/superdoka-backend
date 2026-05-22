@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Header
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
@@ -111,6 +111,14 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
 
     op_ids = [op.id for op in operators]
 
+    # Last active timestamp per operator from ConversationLog
+    last_active_rows = (await db.execute(
+        select(ConversationLog.operator_id, func.max(ConversationLog.created_at).label("last_at"))
+        .where(ConversationLog.operator_id.in_(op_ids))
+        .group_by(ConversationLog.operator_id)
+    )).all()
+    last_active_map: dict[int, datetime] = {row.operator_id: row.last_at for row in last_active_rows}
+
     # Active sessions keyed by operator_id
     sessions = {
         s.operator_id: s
@@ -151,6 +159,7 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
                     active_machine = a["reg_number"]
                     break
 
+        last_at = last_active_map.get(op.id)
         result.append({
             "id":             op.id,
             "name":           op.name,
@@ -159,6 +168,7 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
             "is_on_shift":    session is not None and session.shift_state == "ACTIVE",
             "active_machine": active_machine,
             "machines":       assignments_by_op[op.id],
+            "last_active_at": last_at.isoformat() if last_at else None,
         })
 
     return result

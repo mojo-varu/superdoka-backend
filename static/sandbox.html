@@ -833,6 +833,26 @@ const INTENT_META = {
   status_update:  { color:"violet", ru:"Статус",       en:"Status" },
 };
 
+function relativeTime(isoStr, lang) {
+  if (!isoStr) return null;
+  const now = Date.now();
+  const then = new Date(isoStr).getTime();
+  const diffMs = now - then;
+  const diffMin = Math.floor(diffMs / 60000);
+  const diffH   = Math.floor(diffMs / 3600000);
+  const diffD   = Math.floor(diffMs / 86400000);
+  const isRu = lang === 'ru';
+  if (diffMin < 1)  return isRu ? 'только что' : 'just now';
+  if (diffMin < 60) return isRu ? `${diffMin}м назад` : `${diffMin}m ago`;
+  if (diffH   < 24) return isRu ? `${diffH}ч назад`   : `${diffH}h ago`;
+  const t = new Date(isoStr);
+  const hhmm = t.toLocaleTimeString(isRu ? 'ru' : 'en', { hour:'2-digit', minute:'2-digit' });
+  if (diffD === 1)  return isRu ? `вчера ${hhmm}` : `yesterday ${hhmm}`;
+  return isRu
+    ? `${t.toLocaleDateString('ru', { day:'numeric', month:'short' })} ${hhmm}`
+    : `${t.toLocaleDateString('en', { day:'numeric', month:'short' })} ${hhmm}`;
+}
+
 function intentLabel(intent, lang) {
   const m = INTENT_META[intent];
   if (!m) return intent;
@@ -1153,10 +1173,15 @@ function OperatorsTab({ fleetData, events }) {
                 )}
               </div>
 
-              {/* Message count */}
-              <div style={{ padding:"10px 16px" }}>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)" }}>
-                  {msgCount === 0 ? t('op_no_messages') : t('op_messages_today', msgCount)}
+              {/* Last active */}
+              <div style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)",
+                  textTransform:"uppercase", letterSpacing:".06em", flexShrink:0 }}>
+                  {lang === 'ru' ? 'последний сеанс' : 'last active'}
+                </span>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                  color: op.last_active_at ? "var(--nb-ink)" : "var(--nb-muted)" }}>
+                  {relativeTime(op.last_active_at, lang) || (lang === 'ru' ? 'нет данных' : 'no data')}
                 </span>
               </div>
             </div>
