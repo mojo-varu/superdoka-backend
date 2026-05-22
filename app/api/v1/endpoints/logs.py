@@ -228,17 +228,14 @@ async def all_events(limit: int = 100, db: AsyncSession = Depends(get_db)):
     All timeline events from today (most recent first optional).
     Powers the Event Log panel in the owner screen.
     """
-    from datetime import date
-    today_start = datetime.combine(date.today(), datetime.min.time())
-
     rows = (await db.execute(
         select(TimelineEvent, Machine, User)
         .join(Machine, Machine.id == TimelineEvent.machine_id)
         .outerjoin(User, User.id == TimelineEvent.operator_id)
-        .where(TimelineEvent.created_at >= today_start)
-        .order_by(TimelineEvent.created_at)
+        .order_by(TimelineEvent.created_at.desc())
         .limit(limit)
     )).all()
+    rows = list(reversed(rows))
 
     # Stable av-class per operator
     op_class_map: dict[int, str] = {}
