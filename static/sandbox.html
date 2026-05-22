@@ -319,6 +319,10 @@ window.__T = {
     op_messages_today:   n => `${n} сообщений сегодня`,
     op_no_messages:      "нет сообщений",
     op_machines_label:   "Машины",
+    shifts_none:        "Смен не найдено",
+    shift_active_label: "активна",
+    shift_completed:    "завершена",
+    shift_events:       n => `${n} событий`,
     btn_today:           "Сегодня ▾",
     btn_export:          "Экспорт",
 
@@ -424,6 +428,10 @@ window.__T = {
     op_messages_today:   n => `${n} messages today`,
     op_no_messages:      "no messages today",
     op_machines_label:   "Machines",
+    shifts_none:        "No shifts found",
+    shift_active_label: "active",
+    shift_completed:    "completed",
+    shift_events:       n => `${n} events`,
     btn_today:           "Today ▾",
     btn_export:          "Export",
 
@@ -1027,16 +1035,16 @@ function FleetTab({ fleetData }) {
   }
 
   return (
-    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow:"hidden", gap:0 }}>
+    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
 
       {/* ── Left card: machine list ── */}
-      <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", borderRight: isMobile ? "none" : "2px solid var(--nb-ink)", maxHeight: isMobile ? 200 : "none" }}>
+      <div className="nb-card" style={{ display:"flex", flexDirection:"column", overflow:"hidden", maxHeight: isMobile ? 200 : "none", marginRight:14 }}>
         {/* header */}
-        <div style={{ padding:"10px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-ink)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+        <div style={{ padding:"10px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-sky)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
           <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", color:"#fff" }}>
             {lang === 'ru' ? 'Мой флот' : 'My Fleet'}
           </span>
-          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.6)" }}>
             {machines.length} {lang === 'ru' ? 'машин' : 'machines'}
           </span>
         </div>
@@ -1048,11 +1056,11 @@ function FleetTab({ fleetData }) {
             return (
               <div key={mm.reg_number} onClick={() => setSelected(mm.reg_number)}
                 style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"2px solid var(--nb-ink)", transition:"background .1s",
-                  background: isSelected ? "var(--nb-yellow)" : "var(--nb-paper)",
-                  boxShadow: isSelected ? "inset 4px 0 0 0 var(--nb-ink)" : "none",
+                  background: isSelected ? "#d6e8f5" : "var(--nb-paper)",
+                  boxShadow: isSelected ? "inset 4px 0 0 0 var(--nb-sky)" : "none",
                   display:"flex", alignItems:"center", gap:10 }}>
-                {/* machine type icon pill */}
-                <div style={{ width:32, height:32, borderRadius:4, border:"2px solid var(--nb-ink)", background: isSelected ? "var(--nb-ink)" : "var(--nb-bg-alt)",
+                {/* machine type pill */}
+                <div style={{ width:32, height:32, borderRadius:4, border:"2px solid var(--nb-ink)", background: isSelected ? "var(--nb-sky)" : "var(--nb-bg-alt)",
                   display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
                   fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800, color: isSelected ? "#fff" : "var(--nb-muted)",
                   textTransform:"uppercase", letterSpacing:"-.01em", lineHeight:1.1, textAlign:"center", padding:"2px" }}>
@@ -1064,8 +1072,8 @@ function FleetTab({ fleetData }) {
                     {hasIssues && <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800, background:"var(--nb-coral)", color:"#fff", padding:"1px 5px", borderRadius:3, border:"1.5px solid var(--nb-ink)" }}>!</span>}
                     <span style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={(mm.status || 'idle').toLowerCase()} /></span>
                   </div>
-                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                    {mm.shift_active ? (lang === 'ru' ? '● смена активна' : '● shift active') : (lang === 'ru' ? '○ нет смены' : '○ idle')}
+                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2, letterSpacing:".03em" }}>
+                    {mm.reg_number}
                   </div>
                 </div>
               </div>
@@ -1075,13 +1083,13 @@ function FleetTab({ fleetData }) {
       </div>
 
       {/* ── Right card: detail ── */}
-      <div className="nb-scroll" style={{ overflowY:"auto", background:"var(--nb-bg)" }}>
+      <div className="nb-card nb-scroll" style={{ overflowY:"auto", background:"var(--nb-bg-alt)" }}>
         {!detail ? (
           <div style={{ padding:40, fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)", textAlign:"center" }}>
             {lang === 'ru' ? 'Загрузка…' : 'Loading…'}
           </div>
         ) : (
-          <div style={{ padding:14, display:"flex", flexDirection:"column", gap:12 }}>
+          <div style={{ padding:12, display:"flex", flexDirection:"column", gap:12 }}>
 
             {/* Machine identity card */}
             <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
@@ -1170,18 +1178,62 @@ function FleetTab({ fleetData }) {
 
 function OperatorsTab({ fleetData, events }) {
   const { t, lang } = useLangT();
-  const [operators, setOperators] = React.useState([]);
-  const [loading, setLoading] = React.useState(true);
+  const isMobile = window.__useWindowWidth() < 768;
 
+  const [operators,      setOperators]      = React.useState([]);
+  const [loading,        setLoading]        = React.useState(true);
+  const [selectedOpId,   setSelectedOpId]   = React.useState(null);
+  const [shifts,         setShifts]         = React.useState([]);
+  const [shiftsLoading,  setShiftsLoading]  = React.useState(false);
+  const [expandedShifts, setExpandedShifts] = React.useState(new Set());
+
+  // Fetch operator list on mount; auto-select first
   React.useEffect(() => {
     fetch('/api/v1/operator/list')
       .then(r => r.ok ? r.json() : [])
       .then(data => {
-        setOperators(Array.isArray(data) ? data : []);
+        const list = Array.isArray(data) ? data : [];
+        setOperators(list);
         setLoading(false);
+        if (list.length > 0 && selectedOpId === null) setSelectedOpId(list[0].id);
       })
       .catch(() => setLoading(false));
   }, []);
+
+  // Fetch shifts whenever selected operator changes
+  React.useEffect(() => {
+    if (!selectedOpId) return;
+    setShiftsLoading(true);
+    setShifts([]);
+    fetch(`/api/v1/operator/${selectedOpId}/shifts?limit=30`)
+      .then(r => r.ok ? r.json() : [])
+      .then(data => { setShifts(Array.isArray(data) ? data : []); setShiftsLoading(false); })
+      .catch(() => setShiftsLoading(false));
+  }, [selectedOpId]);
+
+  const toggleExpand = (shiftNum) => {
+    const next = new Set(expandedShifts);
+    next.has(shiftNum) ? next.delete(shiftNum) : next.add(shiftNum);
+    setExpandedShifts(next);
+  };
+
+  const fmtDuration = (minutes) => {
+    if (minutes == null) return '—';
+    const h = Math.floor(minutes / 60);
+    const m = minutes % 60;
+    return h > 0 ? `${h}ч ${m}м` : `${m}м`;
+  };
+  const fmtDate = (isoStr) => {
+    if (!isoStr) return '';
+    const d = new Date(isoStr);
+    return d.toLocaleDateString(lang === 'ru' ? 'ru' : 'en', { day:'numeric', month:'short' });
+  };
+  const fmtTime = (isoStr) => {
+    if (!isoStr) return '';
+    return new Date(isoStr).toLocaleTimeString(lang === 'ru' ? 'ru' : 'en', { hour:'2-digit', minute:'2-digit' });
+  };
+
+  const selectedOp = operators.find(o => o.id === selectedOpId) || null;
 
   if (loading) return (
     <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%",
@@ -1198,88 +1250,221 @@ function OperatorsTab({ fleetData, events }) {
   );
 
   return (
-    <div className="nb-scroll" style={{ flex:1, overflowY:"auto", padding:18 }}>
-      <div className="nb-operators-grid" style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(300px, 1fr))", gap:16, alignContent:"start" }}>
-        {operators.map(op => {
-          const isOnShift = op.is_on_shift;
-          const initials = op.initials || (op.name || '').split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || '?';
-          const opMachines = (op.machines || []).map(m => {
-            const liveM = (fleetData?.machines || []).find(fm => fm.reg_number === m.reg_number);
-            return { ...m, shift_active: liveM?.shift_active ?? false };
-          });
-          const msgCount = (events || []).filter(e => e.operator_name === op.name).length;
+    <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "280px 1fr",
+      gridTemplateRows: isMobile ? "auto 1fr" : "1fr",
+      height:"100%", overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
 
-          return (
-            <div key={op.platform_user_id} className="nb-card"
-              style={{ padding:0, overflow:"hidden", background: isOnShift ? "var(--nb-paper)" : "var(--nb-bg-alt)" }}>
+      {/* ── Left pane: operator list ── */}
+      <div className="nb-card" style={{ display:"flex", flexDirection:"column", overflow:"hidden",
+        maxHeight: isMobile ? 200 : "none", marginRight: isMobile ? 0 : 14, marginBottom: isMobile ? 10 : 0 }}>
+        {/* Sky header */}
+        <div style={{ padding:"10px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-sky)",
+          flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:800,
+            textTransform:"uppercase", letterSpacing:".08em", color:"#fff" }}>
+            {lang === 'ru' ? 'Операторы' : 'Operators'}
+          </span>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.6)" }}>
+            {operators.length} {lang === 'ru' ? 'В НАРЯДЕ' : 'ON DUTY'}
+          </span>
+        </div>
+        {/* Operator list */}
+        <div className="nb-scroll" style={{ overflowY:"auto", flex:1, background:"var(--nb-bg-alt)" }}>
+          {operators.map(op => (
+            <OperatorChip
+              key={op.id}
+              op={op}
+              active={selectedOpId === op.id}
+              onClick={() => setSelectedOpId(op.id)}
+            />
+          ))}
+        </div>
+      </div>
 
-              {/* Header row */}
-              <div style={{ padding:"14px 16px", borderBottom:"2px solid var(--nb-ink)",
-                background: isOnShift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
-                display:"flex", alignItems:"center", gap:12 }}>
-                <div style={{ width:42, height:42, borderRadius:"50%",
-                  background: isOnShift ? "var(--nb-ink)" : "var(--nb-paper)",
-                  color: isOnShift ? "#fff" : "var(--nb-ink)",
+      {/* ── Right pane: shifts ── */}
+      <div className="nb-scroll" style={{ overflowY:"auto", background:"var(--nb-bg)", padding:0, display:"flex", flexDirection:"column", gap:10 }}>
+        {!selectedOp ? (
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%",
+            fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+            {lang === 'ru' ? 'Выберите оператора' : 'Select an operator'}
+          </div>
+        ) : (
+          <>
+            {/* Selected operator header card */}
+            <div className="nb-card" style={{ padding:0, overflow:"hidden", flexShrink:0 }}>
+              <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", gap:12,
+                background: selectedOp.is_on_shift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
+                borderBottom:"2px solid var(--nb-ink)" }}>
+                <div style={{ width:44, height:44, borderRadius:"50%",
+                  background: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-paper)",
+                  color: selectedOp.is_on_shift ? "#fff" : "var(--nb-ink)",
                   border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
-                  fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:14, flexShrink:0 }}>{initials}</div>
+                  fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:15, flexShrink:0 }}>
+                  {selectedOp.initials || (selectedOp.name || '').slice(0,2).toUpperCase() || '?'}
+                </div>
                 <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, fontSize:15, lineHeight:1.2 }}>{op.name}</div>
+                  <div style={{ fontWeight:700, fontSize:16, lineHeight:1.2 }}>{selectedOp.name}</div>
                   <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600,
                     textTransform:"uppercase", letterSpacing:".06em", marginTop:3,
-                    color: isOnShift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
-                    {isOnShift ? t('op_on_shift') : t('op_off_shift')}
+                    color: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
+                    {selectedOp.is_on_shift ? t('op_on_shift') : t('op_off_shift')}
                   </div>
                 </div>
-                <span style={{ width:12, height:12, borderRadius:"50%", flexShrink:0,
-                  background: isOnShift ? "var(--nb-good)" : "#cdc9bd",
-                  border:"2px solid var(--nb-ink)" }} />
-              </div>
-
-              {/* Machines */}
-              <div style={{ padding:"12px 16px", borderBottom:"2px solid var(--nb-ink)" }}>
-                <div className="nb-label" style={{ marginBottom:8 }}>{t('op_machines_label')}</div>
-                {opMachines.length === 0 ? (
-                  <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)" }}>—</span>
-                ) : (
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                    {opMachines.map(m => (
-                      <div key={m.reg_number} style={{ display:"flex", flexDirection:"column", gap:2 }}>
-                        <span style={{ fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:700,
-                          padding:"4px 10px", background: m.shift_active ? "var(--nb-yellow)" : "var(--nb-paper)",
-                          border:"2px solid var(--nb-ink)", borderRadius:4, letterSpacing:".02em" }}>
-                          {m.reg_number}
-                        </span>
-                        {m.machine_type && (
-                          <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, color:"var(--nb-muted)",
-                            textAlign:"center", letterSpacing:".04em", textTransform:"uppercase" }}>{m.machine_type}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              {/* Last active */}
-              <div style={{ padding:"10px 16px 4px 16px", display:"flex", alignItems:"center", gap:6 }}>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)",
-                  textTransform:"uppercase", letterSpacing:".06em", flexShrink:0 }}>
-                  {lang === 'ru' ? 'последний сеанс' : 'last active'}
-                </span>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
-                  color: op.last_active_at ? "var(--nb-ink)" : "var(--nb-muted)" }}>
-                  {relativeTime(op.last_active_at, lang) || (lang === 'ru' ? 'нет данных' : 'no data')}
-                </span>
-              </div>
-              {/* Shift stats row */}
-              <div style={{ padding:"0 16px 10px 16px", display:"flex", alignItems:"center", gap:6 }}>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)" }}>↺</span>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)" }}>
-                  {op.completed_shifts_today ?? 0} {lang === 'ru' ? 'смен сегодня' : 'shifts today'} · avg {fmtDur(op.avg_shift_duration_30d_minutes)}
-                </span>
+                {/* Machine pills */}
+                <div style={{ display:"flex", flexWrap:"wrap", gap:5, justifyContent:"flex-end" }}>
+                  {(selectedOp.machines || []).map(m => (
+                    <span key={m.reg_number} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                      padding:"3px 8px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
+                      borderRadius:4, letterSpacing:".02em" }}>
+                      {m.reg_number}
+                    </span>
+                  ))}
+                </div>
               </div>
             </div>
-          );
-        })}
+
+            {/* Section label */}
+            <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
+              textTransform:"uppercase", letterSpacing:".08em", color:"var(--nb-muted)",
+              padding:"4px 2px" }}>
+              {lang === 'ru' ? 'История смен' : 'Shift history'}
+            </div>
+
+            {/* Shifts list */}
+            {shiftsLoading ? (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40,
+                fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+                {lang === 'ru' ? 'Загрузка…' : 'Loading…'}
+              </div>
+            ) : shifts.length === 0 ? (
+              <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40,
+                fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+                {t('shifts_none')}
+              </div>
+            ) : (
+              shifts.map(shift => {
+                const isExpanded = expandedShifts.has(shift.shift_number);
+                const isOpen     = shift.status === "open";
+                // Deduplicated intent types, excluding shift_start / shift_end
+                const intentTypes = [...new Set(
+                  (shift.events || [])
+                    .map(e => e.event_type.toLowerCase())
+                    .filter(et => et !== 'shift_start' && et !== 'shift_end')
+                )];
+                return (
+                  <div key={shift.shift_number} className="nb-card"
+                    style={{ padding:0, overflow:"hidden" }}>
+
+                    {/* Collapsed header — always visible */}
+                    <div onClick={() => toggleExpand(shift.shift_number)}
+                      style={{ cursor:"pointer", padding:"10px 14px",
+                        background: isOpen ? "var(--nb-paper)" : "var(--nb-bg-alt)",
+                        display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
+
+                      {/* Shift number + date */}
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
+                        color:"var(--nb-muted)", minWidth:32 }}>#{shift.shift_number}</span>
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700 }}>
+                        {fmtDate(shift.started_at)}
+                      </span>
+
+                      {/* Time range */}
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-ink-soft)" }}>
+                        {fmtTime(shift.started_at)}
+                        {shift.ended_at ? ` → ${fmtTime(shift.ended_at)}` : ' →'}
+                      </span>
+
+                      {/* Duration */}
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                        padding:"2px 7px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
+                        borderRadius:4 }}>
+                        {fmtDuration(shift.duration_minutes)}
+                      </span>
+
+                      {/* Machine pill */}
+                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                        padding:"2px 8px", background:"var(--nb-sky)", color:"#fff",
+                        border:"2px solid var(--nb-ink)", borderRadius:4 }}>
+                        {shift.machine_alias || shift.reg_number}
+                      </span>
+
+                      {/* Status pill */}
+                      {isOpen && (
+                        <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800,
+                          textTransform:"uppercase", letterSpacing:".06em",
+                          padding:"2px 6px", background:"var(--nb-lime)",
+                          border:"2px solid var(--nb-ink)", borderRadius:4 }}>
+                          {t('shift_active_label')}
+                        </span>
+                      )}
+
+                      {/* Summary pills */}
+                      {shift.summary.fuel_total > 0 && (
+                        <span className="nb-tag sky" style={{ fontSize:10 }}>
+                          {shift.summary.fuel_total}л
+                        </span>
+                      )}
+                      {shift.summary.hours_total > 0 && (
+                        <span className="nb-tag mint" style={{ fontSize:10 }}>
+                          {shift.summary.hours_total}ч
+                        </span>
+                      )}
+                      {shift.summary.issue_count > 0 && (
+                        <span className="nb-tag coral" style={{ fontSize:10 }}>
+                          {shift.summary.issue_count} {lang === 'ru' ? 'пробл.' : 'issues'}
+                        </span>
+                      )}
+
+                      {/* Intent type chips */}
+                      {intentTypes.map(et => {
+                        const meta = INTENT_META[et];
+                        return (
+                          <span key={et} className={`nb-tag ${meta ? meta.color : 'ink'}`}
+                            style={{ fontSize:9 }}>
+                            {intentLabel(et, lang)}
+                          </span>
+                        );
+                      })}
+
+                      {/* Event count + expand chevron */}
+                      <span style={{ marginLeft:"auto", fontFamily:"var(--nb-mono)", fontSize:10,
+                        color:"var(--nb-muted)", display:"flex", alignItems:"center", gap:4 }}>
+                        {t('shift_events')(shift.summary.event_count)}
+                        <span style={{ fontSize:12 }}>{isExpanded ? '▲' : '▼'}</span>
+                      </span>
+                    </div>
+
+                    {/* Expanded event list */}
+                    {isExpanded && (
+                      <div style={{ borderTop:"2px solid var(--nb-ink)" }}>
+                        {(shift.events || []).map((ev, i) => {
+                          const evMeta = INTENT_META[ev.event_type.toLowerCase()];
+                          return (
+                            <div key={i} style={{ padding:"8px 14px",
+                              borderBottom: i < shift.events.length - 1 ? "1.5px solid var(--nb-ink)" : "none",
+                              display:"flex", gap:10, alignItems:"flex-start" }}>
+                              <span style={{ fontFamily:"var(--nb-mono)", fontSize:11,
+                                color:"var(--nb-muted)", flexShrink:0, marginTop:1 }}>
+                                {fmtTime(ev.created_at)}
+                              </span>
+                              <span className={`nb-tag ${evMeta ? evMeta.color : 'ink'}`}
+                                style={{ fontSize:9, flexShrink:0 }}>
+                                {intentLabel(ev.event_type.toLowerCase(), lang)}
+                              </span>
+                              <span style={{ fontSize:13, flex:1, lineHeight:1.4 }}>
+                                {ev.raw_text || '—'}
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </>
+        )}
       </div>
     </div>
   );

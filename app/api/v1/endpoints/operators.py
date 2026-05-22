@@ -356,3 +356,126 @@ async def operator_conversation(
         }
         for log in reversed(rows)
     ]
+
+
+@operator_router.get("/{operator_id}/shifts")
+async def operator_shifts(
+    operator_id: int,
+    limit: int = 30,
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Completed and active shifts for an operator, each with its events summarised.
+    Sorted newest first. Used by the Operators tab shift history pane.
+    """
+    op = (await db.execute(
+        select(User).where(User.id == operator_id, User.user_type == "OPERATOR")
+    )).scalar_one_or_none()
+    if not op:
+        raise HTTPException(status_code=404, detail="Operator not found")
+
+    all_events = (await db.execute(
+        select(TimelineEvent)
+        .where(TimelineEvent.operator_id == operator_id)
+        .order_by(TimelineEvent.created_at.asc())
+    )).scalars().all()
+
+    # ── Walk events to build shift buckets ──────────────────────────────────
+    buckets: list = []          # completed + final open bucket
+    current_bucket: Optional[dict] = None
+
+    for ev in all_events:
+        if ev.event_type == "SHIFT_START":
+            # Close any currently open bucket as "open" (no SHIFT_END seen)
+            if current_bucket is not None:
+                current_bucket["status"] = "open"
+                buckets.append(current_bucket)
+            # Open a new bucket
+            current_bucket = {
+                "machine_id": ev.machine_id,
+                "started_at": ev.created_at,
+                "ended_at":   None,
+                "status":     "open",
+                "events":     [ev],
+            }
+        elif ev.event_type == "SHIFT_END":
+            if current_bucket is not None:
+                current_bucket["events"].append(ev)
+                current_bucket["ended_at"] = ev.created_at
+                current_bucket["status"]   = "completed"
+                buckets.append(current_bucket)
+                current_bucket = None
+            # else: orphaned SHIFT_END with no preceding start — ignore
+        else:
+            # Any other event appended to the current open bucket
+            if current_bucket is not None:
+                current_bucket["events"].append(ev)
+
+    # If a bucket is still open after walking all events
+    if current_bucket is not None:
+        current_bucket["status"] = "open"
+        buckets.append(current_bucket)
+
+    # ── Bulk-fetch Machine rows ──────────────────────────────────────────────
+    machine_ids = list({b["machine_id"] for b in buckets if b["machine_id"] is not None})
+    machines_map: Dict[int, "Machine"] = {}
+    if machine_ids:
+        machine_rows = (await db.execute(
+            select(Machine).where(Machine.id.in_(machine_ids))
+        )).scalars().all()
+        machines_map = {m.id: m for m in machine_rows}
+
+    # ── Assign 1-based shift_number (oldest = 1) and sort newest first ───────
+    for i, b in enumerate(buckets):
+        b["shift_number"] = i + 1
+
+    now = datetime.utcnow()
+    result_list = []
+    for b in reversed(buckets):          # newest first
+        m_id      = b["machine_id"]
+        machine   = machines_map.get(m_id)
+        started   = b["started_at"]
+        ended     = b.get("ended_at")
+
+        duration_minutes = int(
+            ((ended if ended else now) - started).total_seconds() / 60
+        )
+
+        evs = b["events"]
+        fuel_total  = sum(
+            float(ev.content.get("fuel_volume", 0) or 0)
+            for ev in evs if ev.event_type == "FUEL_LOG"
+        )
+        hours_total = sum(
+            float(ev.content.get("hours", 0) or 0)
+            for ev in evs if ev.event_type == "HOURS_LOG"
+        )
+        issue_count = sum(1 for ev in evs if ev.event_type == "ISSUE_REPORT")
+
+        result_list.append({
+            "shift_number":     b["shift_number"],
+            "machine_id":       m_id,
+            "machine_alias":    (machine.alias or machine.reg_number) if machine else str(m_id),
+            "reg_number":       machine.reg_number if machine else "",
+            "started_at":       started.isoformat(),
+            "ended_at":         ended.isoformat() if ended else None,
+            "duration_minutes": duration_minutes,
+            "status":           b["status"],
+            "events": [
+                {
+                    "event_type": ev.event_type,
+                    "created_at": ev.created_at.isoformat(),
+                    "raw_text":   ev.raw_text or "",
+                    "content":    ev.content or {},
+                }
+                for ev in evs
+            ],
+            "summary": {
+                "fuel_total":  round(fuel_total, 2),
+                "hours_total": round(hours_total, 2),
+                "issue_count": issue_count,
+                "event_count": len(evs),
+            },
+        })
+
+    return result_list[:limit]
