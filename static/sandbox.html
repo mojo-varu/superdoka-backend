@@ -280,6 +280,10 @@ body { font-family: var(--nb-font); color: var(--nb-ink); background: var(--nb-b
   80%            { transform: scale(0.98);  box-shadow: 3px 3px 0 0 #14171a; }
   88%            { transform: scale(1);     box-shadow: 3px 3px 0 0 #14171a; }
 }
+@keyframes shPulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: .3; }
+}
 
 .nb-stamp {
   animation: nb-stamp 3.5s ease-in-out infinite;
@@ -751,7 +755,7 @@ function SummaryTab({ fleetData, events }) {
         />
       </div>
 
-      <div className="nb-scroll nb-summary-grid" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:18, alignContent:"start" }}>
+      <div className="nb-scroll nb-summary-grid" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:18, alignContent:"start" }}>
         {/* VFM Insights — anomalies only */}
         <div style={{ gridColumn:"1 / -1" }}>
           <div style={{ display:"flex", alignItems:"center", gap:10, marginBottom:10 }}>
@@ -1176,6 +1180,14 @@ function FleetTab({ fleetData }) {
   );
 }
 
+const SHIFT_KIND = {
+  shift_start:  { bg: 'var(--nb-yellow)', fg: 'var(--nb-ink)' },
+  shift_end:    { bg: 'var(--nb-yellow)', fg: 'var(--nb-ink)' },
+  fuel_log:     { bg: 'var(--nb-sky)',    fg: '#fafaf7' },
+  hours_log:    { bg: 'var(--nb-mint)',   fg: '#fafaf7' },
+  issue_report: { bg: 'var(--nb-coral)', fg: '#fafaf7' },
+};
+
 function OperatorsTab({ fleetData, events }) {
   const { t, lang } = useLangT();
   const isMobile = window.__useWindowWidth() < 768;
@@ -1185,7 +1197,7 @@ function OperatorsTab({ fleetData, events }) {
   const [selectedOpId,   setSelectedOpId]   = React.useState(null);
   const [shifts,         setShifts]         = React.useState([]);
   const [shiftsLoading,  setShiftsLoading]  = React.useState(false);
-  const [expandedShifts, setExpandedShifts] = React.useState(new Set());
+  const [expandedShift, setExpandedShift]   = React.useState(null);
 
   // Fetch operator list on mount; auto-select first
   React.useEffect(() => {
@@ -1212,9 +1224,7 @@ function OperatorsTab({ fleetData, events }) {
   }, [selectedOpId]);
 
   const toggleExpand = (shiftNum) => {
-    const next = new Set(expandedShifts);
-    next.has(shiftNum) ? next.delete(shiftNum) : next.add(shiftNum);
-    setExpandedShifts(next);
+    setExpandedShift(prev => prev === shiftNum ? null : shiftNum);
   };
 
   const fmtDuration = (minutes) => {
@@ -1231,6 +1241,10 @@ function OperatorsTab({ fleetData, events }) {
   const fmtTime = (isoStr) => {
     if (!isoStr) return '';
     return new Date(isoStr).toLocaleTimeString(lang === 'ru' ? 'ru' : 'en', { hour:'2-digit', minute:'2-digit' });
+  };
+  const fmtWeekday = (isoStr) => {
+    if (!isoStr) return '';
+    return new Date(isoStr).toLocaleDateString(lang === 'ru' ? 'ru' : 'en', { weekday:'short' });
   };
 
   const selectedOp = operators.find(o => o.id === selectedOpId) || null;
@@ -1343,120 +1357,230 @@ function OperatorsTab({ fleetData, events }) {
               </div>
             ) : (
               shifts.map(shift => {
-                const isExpanded = expandedShifts.has(shift.shift_number);
+                const isExpanded = expandedShift === shift.shift_number;
                 const isOpen     = shift.status === "open";
-                // Deduplicated intent types, excluding shift_start / shift_end
-                const intentTypes = [...new Set(
-                  (shift.events || [])
-                    .map(e => e.event_type.toLowerCase())
-                    .filter(et => et !== 'shift_start' && et !== 'shift_end')
-                )];
+                const stripe     = isOpen
+                  ? 'var(--nb-lime)'
+                  : shift.summary.issue_count > 0
+                    ? 'var(--nb-coral)'
+                    : shift.summary.event_count > 2
+                      ? 'var(--nb-mint)'
+                      : '#cdc9bd';
                 return (
-                  <div key={shift.shift_number} className="nb-card"
-                    style={{ padding:0, overflow:"hidden" }}>
+                  <div key={shift.shift_number}
+                    style={{ background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
+                      borderRadius:6, overflow:"hidden" }}>
 
-                    {/* Collapsed header — always visible */}
-                    <div onClick={() => toggleExpand(shift.shift_number)}
-                      style={{ cursor:"pointer", padding:"10px 14px",
-                        background: isOpen ? "var(--nb-paper)" : "var(--nb-bg-alt)",
-                        display:"flex", flexWrap:"wrap", alignItems:"center", gap:8 }}>
+                    {/* Collapsed row — clickable */}
+                    <button onClick={() => toggleExpand(shift.shift_number)}
+                      style={{ width:"100%", textAlign:"left", background:"transparent",
+                        border:"none", cursor:"pointer", padding:0,
+                        fontFamily:"var(--nb-font)", display:"block" }}>
+                      <div style={{ display:"flex", alignItems:"stretch" }}>
 
-                      {/* Shift number + date */}
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
-                        color:"var(--nb-muted)", minWidth:32 }}>#{shift.shift_number}</span>
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700 }}>
-                        {fmtDate(shift.started_at)}
-                      </span>
-
-                      {/* Time range */}
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-ink-soft)" }}>
-                        {fmtTime(shift.started_at)}
-                        {shift.ended_at ? ` → ${fmtTime(shift.ended_at)}` : ' →'}
-                      </span>
-
-                      {/* Duration */}
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
-                        padding:"2px 7px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
-                        borderRadius:4 }}>
-                        {fmtDuration(shift.duration_minutes)}
-                      </span>
-
-                      {/* Machine pill */}
-                      <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
-                        padding:"2px 8px", background:"var(--nb-sky)", color:"#fff",
-                        border:"2px solid var(--nb-ink)", borderRadius:4 }}>
-                        {shift.machine_alias || shift.reg_number}
-                      </span>
-
-                      {/* Status pill */}
-                      {isOpen && (
-                        <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800,
-                          textTransform:"uppercase", letterSpacing:".06em",
-                          padding:"2px 6px", background:"var(--nb-lime)",
-                          border:"2px solid var(--nb-ink)", borderRadius:4 }}>
-                          {t('shift_active_label')}
-                        </span>
-                      )}
-
-                      {/* Summary pills */}
-                      {shift.summary.fuel_total > 0 && (
-                        <span className="nb-tag sky" style={{ fontSize:10 }}>
-                          {shift.summary.fuel_total}л
-                        </span>
-                      )}
-                      {shift.summary.hours_total > 0 && (
-                        <span className="nb-tag mint" style={{ fontSize:10 }}>
-                          {shift.summary.hours_total}ч
-                        </span>
-                      )}
-                      {shift.summary.issue_count > 0 && (
-                        <span className="nb-tag coral" style={{ fontSize:10 }}>
-                          {shift.summary.issue_count} {lang === 'ru' ? 'пробл.' : 'issues'}
-                        </span>
-                      )}
-
-                      {/* Intent type chips */}
-                      {intentTypes.map(et => {
-                        const meta = INTENT_META[et];
-                        return (
-                          <span key={et} className={`nb-tag ${meta ? meta.color : 'ink'}`}
-                            style={{ fontSize:9 }}>
-                            {intentLabel(et, lang)}
+                        {/* Hero duration block */}
+                        <div style={{ display:"flex", flexDirection:"column",
+                          justifyContent:"center", padding:"12px 18px",
+                          background:stripe, borderRight:"2px solid var(--nb-ink)",
+                          minWidth:110, flexShrink:0 }}>
+                          <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700,
+                            letterSpacing:".12em", textTransform:"uppercase", opacity:.7 }}>
+                            #{String(shift.shift_number).padStart(2,'0')}
                           </span>
-                        );
-                      })}
+                          <span style={{ fontFamily:"var(--nb-mono)", fontWeight:700,
+                            fontSize:22, lineHeight:1.05, marginTop:2,
+                            letterSpacing:"-.01em", whiteSpace:"nowrap" }}>
+                            {fmtDuration(shift.duration_minutes)}
+                          </span>
+                        </div>
 
-                      {/* Event count + expand chevron */}
-                      <span style={{ marginLeft:"auto", fontFamily:"var(--nb-mono)", fontSize:10,
-                        color:"var(--nb-muted)", display:"flex", alignItems:"center", gap:4 }}>
-                        {t('shift_events')(shift.summary.event_count)}
-                        <span style={{ fontSize:12 }}>{isExpanded ? '▲' : '▼'}</span>
-                      </span>
-                    </div>
+                        {/* Middle content */}
+                        <div style={{ flex:1, padding:"12px 16px", display:"flex",
+                          alignItems:"center", gap:12, minWidth:0, flexWrap:"wrap" }}>
 
-                    {/* Expanded event list */}
-                    {isExpanded && (
-                      <div style={{ borderTop:"2px solid var(--nb-ink)" }}>
-                        {(shift.events || []).map((ev, i) => {
-                          const evMeta = INTENT_META[ev.event_type.toLowerCase()];
-                          return (
-                            <div key={i} style={{ padding:"8px 14px",
-                              borderBottom: i < shift.events.length - 1 ? "1.5px solid var(--nb-ink)" : "none",
-                              display:"flex", gap:10, alignItems:"flex-start" }}>
-                              <span style={{ fontFamily:"var(--nb-mono)", fontSize:11,
-                                color:"var(--nb-muted)", flexShrink:0, marginTop:1 }}>
-                                {fmtTime(ev.created_at)}
+                          {/* Date + time range */}
+                          <div style={{ display:"flex", flexDirection:"column",
+                            lineHeight:1.2, minWidth:130, whiteSpace:"nowrap" }}>
+                            <span style={{ fontWeight:700, fontSize:13 }}>
+                              {fmtDate(shift.started_at)}
+                              <span style={{ color:"var(--nb-muted)", fontWeight:500, marginLeft:5 }}>
+                                · {fmtWeekday(shift.started_at)}
                               </span>
-                              <span className={`nb-tag ${evMeta ? evMeta.color : 'ink'}`}
-                                style={{ fontSize:9, flexShrink:0 }}>
-                                {intentLabel(ev.event_type.toLowerCase(), lang)}
+                            </span>
+                            <span style={{ fontFamily:"var(--nb-mono)", fontSize:11,
+                              color:"var(--nb-ink-soft)", marginTop:3 }}>
+                              {fmtTime(shift.started_at)}
+                              <span style={{ color:"var(--nb-muted)" }}> → </span>
+                              {shift.ended_at
+                                ? fmtTime(shift.ended_at)
+                                : <span style={{ color:"var(--nb-good,#5a7a3a)", fontWeight:700 }}>
+                                    {lang === 'ru' ? 'активна' : 'live'}
+                                  </span>}
+                            </span>
+                          </div>
+
+                          {/* Machine pill */}
+                          <span style={{ fontFamily:"var(--nb-mono)", fontWeight:700,
+                            fontSize:12, padding:"4px 11px",
+                            background:"var(--nb-bg-alt)", border:"2px solid var(--nb-ink)",
+                            borderRadius:4, letterSpacing:".02em", whiteSpace:"nowrap" }}>
+                            {shift.machine_alias || shift.reg_number}
+                          </span>
+
+                          {/* Stat atoms */}
+                          <div style={{ display:"flex", gap:6, flexWrap:"wrap" }}>
+                            {shift.summary.fuel_total > 0 && (
+                              <span style={{ display:"inline-flex", alignItems:"center", gap:5,
+                                padding:"4px 9px", background:"var(--nb-paper)",
+                                border:"2px solid var(--nb-ink)", borderRadius:4,
+                                fontFamily:"var(--nb-mono)", whiteSpace:"nowrap" }}>
+                                <span style={{ fontSize:9, fontWeight:600, letterSpacing:".1em",
+                                  textTransform:"uppercase", opacity:.65 }}>
+                                  {lang === 'ru' ? 'топл.' : 'fuel'}
+                                </span>
+                                <span style={{ fontSize:12, fontWeight:700 }}>
+                                  {shift.summary.fuel_total}л
+                                </span>
                               </span>
-                              <span style={{ fontSize:13, flex:1, lineHeight:1.4 }}>
-                                {ev.raw_text || '—'}
+                            )}
+                            {shift.summary.hours_total > 0 && (
+                              <span style={{ display:"inline-flex", alignItems:"center", gap:5,
+                                padding:"4px 9px", background:"var(--nb-paper)",
+                                border:"2px solid var(--nb-ink)", borderRadius:4,
+                                fontFamily:"var(--nb-mono)", whiteSpace:"nowrap" }}>
+                                <span style={{ fontSize:9, fontWeight:600, letterSpacing:".1em",
+                                  textTransform:"uppercase", opacity:.65 }}>
+                                  {lang === 'ru' ? 'нарб.' : 'hours'}
+                                </span>
+                                <span style={{ fontSize:12, fontWeight:700 }}>
+                                  {shift.summary.hours_total}ч
+                                </span>
                               </span>
-                            </div>
-                          );
-                        })}
+                            )}
+                            {shift.summary.issue_count > 0 && (
+                              <span style={{ display:"inline-flex", alignItems:"center", gap:5,
+                                padding:"4px 9px", background:"var(--nb-coral)",
+                                border:"2px solid var(--nb-ink)", borderRadius:4,
+                                fontFamily:"var(--nb-mono)", whiteSpace:"nowrap" }}>
+                                <span style={{ fontSize:9, fontWeight:600, letterSpacing:".1em",
+                                  textTransform:"uppercase", opacity:.8, color:"#fafaf7" }}>
+                                  {lang === 'ru' ? 'пробл.' : 'issues'}
+                                </span>
+                                <span style={{ fontSize:12, fontWeight:700, color:"#fafaf7" }}>
+                                  {shift.summary.issue_count}
+                                </span>
+                              </span>
+                            )}
+                            {isOpen && (
+                              <span style={{ display:"inline-flex", alignItems:"center", gap:5,
+                                padding:"4px 9px", background:"var(--nb-lime)",
+                                border:"2px solid var(--nb-ink)", borderRadius:4,
+                                fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                                textTransform:"uppercase", letterSpacing:".08em",
+                                whiteSpace:"nowrap" }}>
+                                <span style={{ width:7, height:7, borderRadius:"50%",
+                                  background:"var(--nb-ink)",
+                                  animation:"shPulse 1.4s ease-in-out infinite" }} />
+                                {lang === 'ru' ? 'активна' : 'active'}
+                              </span>
+                            )}
+                          </div>
+
+                          <div style={{ flex:1 }} />
+
+                          {/* Event count + chevron */}
+                          <div style={{ display:"flex", alignItems:"center", gap:7,
+                            fontFamily:"var(--nb-mono)", fontWeight:600, fontSize:11,
+                            color:"var(--nb-muted)", letterSpacing:".04em",
+                            whiteSpace:"nowrap" }}>
+                            <span style={{ textTransform:"uppercase" }}>
+                              {t('shift_events', shift.summary.event_count)}
+                            </span>
+                            <span style={{ width:24, height:24, borderRadius:4,
+                              background: isExpanded ? "var(--nb-ink)" : "var(--nb-paper)",
+                              color: isExpanded ? "var(--nb-paper)" : "var(--nb-ink)",
+                              border:"2px solid var(--nb-ink)",
+                              display:"flex", alignItems:"center", justifyContent:"center",
+                              fontSize:11, transition:"transform .15s",
+                              transform: isExpanded ? "rotate(180deg)" : "none" }}>▾</span>
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+
+                    {/* Expanded — Timeline rail */}
+                    {isExpanded && shift.events.length > 0 && (
+                      <div style={{ borderTop:"2px solid var(--nb-ink)",
+                        background:"var(--nb-bg-alt)", padding:"16px 20px 18px" }}>
+                        <div style={{ display:"flex", alignItems:"center",
+                          gap:10, marginBottom:14 }}>
+                          <span className="nb-label">
+                            {lang === 'ru' ? 'Хронология' : 'Timeline'}
+                          </span>
+                          <span style={{ flex:1, height:2, background:"var(--nb-ink)", opacity:.15 }} />
+                          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10,
+                            color:"var(--nb-muted)", textTransform:"uppercase",
+                            letterSpacing:".1em" }}>
+                            {shift.events.length} {lang === 'ru' ? 'событий' : 'parsed'}
+                          </span>
+                        </div>
+
+                        <div style={{ position:"relative", paddingLeft:30 }}>
+                          {/* Spine */}
+                          <div style={{ position:"absolute", left:10, top:8,
+                            bottom:8, width:2, background:"var(--nb-ink)" }} />
+
+                          {shift.events.map((ev, i) => {
+                            const kindKey = ev.event_type.toLowerCase();
+                            const kind    = SHIFT_KIND[kindKey] || { bg:"var(--nb-paper)", fg:"var(--nb-ink)" };
+                            const contentEntries = Object.entries(ev.content || {})
+                              .filter(([k]) => k !== 'inferred');
+                            return (
+                              <div key={i} style={{ position:"relative",
+                                marginBottom: i < shift.events.length - 1 ? 14 : 0 }}>
+                                {/* Dot */}
+                                <div style={{ position:"absolute", left:-28, top:4,
+                                  width:18, height:18, borderRadius:"50%",
+                                  background:kind.bg, border:"2px solid var(--nb-ink)" }} />
+                                <div style={{ display:"flex", alignItems:"baseline",
+                                  gap:10, flexWrap:"wrap" }}>
+                                  <span style={{ fontFamily:"var(--nb-mono)", fontWeight:700,
+                                    fontSize:11, color:"var(--nb-muted)", minWidth:65,
+                                    whiteSpace:"nowrap" }}>
+                                    {fmtTime(ev.created_at)}
+                                  </span>
+                                  <span style={{ display:"inline-block", padding:"1px 7px",
+                                    background:kind.bg, color:kind.fg,
+                                    border:"2px solid var(--nb-ink)", borderRadius:4,
+                                    fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:700,
+                                    textTransform:"uppercase", letterSpacing:".06em",
+                                    whiteSpace:"nowrap" }}>
+                                    {intentLabel(kindKey, lang)}
+                                  </span>
+                                  <span style={{ fontSize:13, fontWeight:500,
+                                    color:"var(--nb-ink)", flex:1, lineHeight:1.4 }}>
+                                    {ev.raw_text || '—'}
+                                  </span>
+                                </div>
+                                {contentEntries.length > 0 && (
+                                  <div style={{ marginLeft:75, marginTop:4,
+                                    display:"flex", gap:12, flexWrap:"wrap",
+                                    fontFamily:"var(--nb-mono)", fontSize:10,
+                                    color:"var(--nb-muted)", letterSpacing:".02em" }}>
+                                    {contentEntries.map(([k, v]) => (
+                                      <span key={k}>
+                                        <span style={{ color:"var(--nb-muted)" }}>{k}:</span>{' '}
+                                        <span style={{ color:"var(--nb-ink)", fontWeight:600 }}>
+                                          {String(v)}
+                                        </span>
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
                       </div>
                     )}
                   </div>
