@@ -326,6 +326,10 @@ window.__T = {
     kpi_hours:           "Часы за сегодня",
     kpi_fuel:            "Топливо за день",
     kpi_open_issues:     "Открытые проблемы",
+    kpi_shifts_done:     "Завершено смен",
+    kpi_avg_shift:       "Среднее время смены",
+    shifts_active_label: "Активные смены",
+    shifts_stale_warn:   "Смена без завершения",
     kpi_production:      "Выработка сегодня",
     kpi_ops_sub:         "по 3 операторам",
     kpi_fuel_sub:        "↑ 8% к средн. за 7 дней",
@@ -427,6 +431,10 @@ window.__T = {
     kpi_hours:           "Hours logged today",
     kpi_fuel:            "Fuel today",
     kpi_open_issues:     "Open issues",
+    kpi_shifts_done:     "Shifts completed",
+    kpi_avg_shift:       "Avg shift duration",
+    shifts_active_label: "Active shifts",
+    shifts_stale_warn:   "Shift without end",
     kpi_production:      "Production today",
     kpi_ops_sub:         "across 3 operators",
     kpi_fuel_sub:        "↑ 8% vs 7-day avg",
@@ -651,6 +659,8 @@ function MetricBlock({ label, value, unit, sub, subTone, accent }) {
   );
 }
 
+const fmtDur = m => m == null ? '—' : `${Math.floor(m/60)}ч ${m%60}м`;
+
 function SummaryTab({ fleetData, events }) {
   const { t, lang } = useLangT();
   const [openIssues, setOpenIssues] = React.useState([]);
@@ -719,6 +729,18 @@ function SummaryTab({ fleetData, events }) {
           subTone={issueCount > 0 ? "bad" : "good"}
           accent={issueCount > 0 ? "var(--nb-yellow)" : "var(--nb-paper)"}
         />
+        <MetricBlock
+          label={t('kpi_shifts_done')}
+          value={loading ? "…" : (fleetData?.shifts?.completed_today ?? 0)}
+          sub={loading ? "" : (lang === 'ru' ? 'за сегодня' : 'today')}
+          subTone="muted"
+        />
+        <MetricBlock
+          label={t('kpi_avg_shift')}
+          value={loading ? "…" : fmtDur(fleetData?.shifts?.average_duration_today_minutes)}
+          sub={loading ? "" : (lang === 'ru' ? 'средняя длит. смены' : 'avg shift length')}
+          subTone="muted"
+        />
       </div>
 
       <div className="nb-scroll nb-summary-grid" style={{ flex:1, overflowY:"auto", padding:18, display:"grid", gridTemplateColumns:"1.3fr 1fr", gap:18, alignContent:"start" }}>
@@ -764,6 +786,38 @@ function SummaryTab({ fleetData, events }) {
                   </div>
                 );
               })}
+            </div>
+          )}
+        </div>
+
+        {/* Active shifts */}
+        <div>
+          <div className="nb-label" style={{ marginBottom:8 }}>{t('shifts_active_label')}</div>
+          {/* Stale shift warnings */}
+          {(fleetData?.shifts?.open_without_end || []).map((s, i) => (
+            <div key={i} className="nb-flat" style={{ padding:"8px 12px", marginBottom:6, background:"var(--nb-yellow)", fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:600 }}>
+              ⚠ {t('shifts_stale_warn')}: {s.operator_name} — {s.machine_alias} — {Math.floor(s.duration_minutes/60)}ч {s.duration_minutes%60}м
+            </div>
+          ))}
+          {(fleetData?.shifts?.active || []).length === 0 && (fleetData?.shifts?.open_without_end || []).length === 0 ? (
+            <div className="nb-flat" style={{ padding:14, fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+              {lang === 'ru' ? 'нет активных смен' : 'no active shifts'}
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {(fleetData?.shifts?.active || []).map((s, i) => (
+                <div key={i} className="nb-flat" style={{ padding:"10px 12px", display:"flex", alignItems:"center", gap:10 }}>
+                  <Avatar2 initials={s.operator_name.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()} color="var(--nb-bg-alt)" size={28} />
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:13, lineHeight:1.2 }}>{s.operator_name}</div>
+                    <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2 }}>{s.machine_alias}</div>
+                  </div>
+                  <div style={{ textAlign:"right", fontFamily:"var(--nb-mono)", fontSize:11 }}>
+                    <div style={{ fontWeight:700 }}>{Math.floor(s.duration_minutes/60)}ч {s.duration_minutes%60}м</div>
+                    <div style={{ color:"var(--nb-muted)", fontSize:10 }}>{s.fuel_this_shift}л · {s.hours_this_shift}ч</div>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
         </div>
@@ -1174,7 +1228,7 @@ function OperatorsTab({ fleetData, events }) {
               </div>
 
               {/* Last active */}
-              <div style={{ padding:"10px 16px", display:"flex", alignItems:"center", gap:6 }}>
+              <div style={{ padding:"10px 16px 4px 16px", display:"flex", alignItems:"center", gap:6 }}>
                 <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)",
                   textTransform:"uppercase", letterSpacing:".06em", flexShrink:0 }}>
                   {lang === 'ru' ? 'последний сеанс' : 'last active'}
@@ -1182,6 +1236,13 @@ function OperatorsTab({ fleetData, events }) {
                 <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
                   color: op.last_active_at ? "var(--nb-ink)" : "var(--nb-muted)" }}>
                   {relativeTime(op.last_active_at, lang) || (lang === 'ru' ? 'нет данных' : 'no data')}
+                </span>
+              </div>
+              {/* Shift stats row */}
+              <div style={{ padding:"0 16px 10px 16px", display:"flex", alignItems:"center", gap:6 }}>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)" }}>↺</span>
+                <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)" }}>
+                  {op.completed_shifts_today ?? 0} {lang === 'ru' ? 'смен сегодня' : 'shifts today'} · avg {fmtDur(op.avg_shift_duration_30d_minutes)}
                 </span>
               </div>
             </div>

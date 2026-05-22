@@ -13,8 +13,9 @@ Endpoints:
 from __future__ import annotations
 
 import logging
+import os
 from datetime import datetime, timedelta
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel
@@ -283,6 +284,83 @@ async def fleet_intelligence(
             "shift_active":             active_op is not None,
         })
 
+    # ------------------------------------------------------------------
+    # Shifts block
+    # ------------------------------------------------------------------
+    stale_hours = int(os.getenv("STALE_SHIFT_HOURS", "12"))
+
+    # Load all active sessions with operator name + machine info
+    active_sessions_rows = (await db.execute(
+        select(ActiveSession, User, Machine)
+        .join(User, User.id == ActiveSession.operator_id)
+        .join(Machine, Machine.id == ActiveSession.machine_id)
+        .where(ActiveSession.shift_state == "ACTIVE")
+    )).all()
+
+    active_shifts_list: List[Dict[str, Any]] = []
+    open_without_end: List[Dict[str, Any]] = []
+    stale_cutoff = now - timedelta(hours=stale_hours)
+
+    for session, user, machine in active_sessions_rows:
+        duration_minutes = int((now - session.started_at).total_seconds() / 60)
+        entry = {
+            "operator_name":    user.name,
+            "machine_alias":    machine.alias or machine.reg_number,
+            "reg_number":       machine.reg_number,
+            "started_at":       session.started_at.isoformat(),
+            "duration_minutes": duration_minutes,
+            "fuel_this_shift":  float(session.fuel_logged_this_shift or 0),
+            "hours_this_shift": float(session.hours_logged_this_shift or 0),
+        }
+        active_shifts_list.append(entry)
+
+        if session.started_at < stale_cutoff:
+            open_without_end.append({
+                "operator_name":    user.name,
+                "machine_alias":    machine.alias or machine.reg_number,
+                "started_at":       session.started_at.isoformat(),
+                "duration_minutes": duration_minutes,
+            })
+
+    # Count SHIFT_END events today
+    completed_today_result = await db.execute(
+        select(func.count(TimelineEvent.id)).where(
+            TimelineEvent.event_type == "SHIFT_END",
+            TimelineEvent.created_at >= today_start,
+        )
+    )
+    completed_today = int(completed_today_result.scalar() or 0)
+
+    # Average duration for completed shifts today:
+    # For each SHIFT_END today, find nearest prior SHIFT_START (same operator + machine)
+    shift_ends_today = (await db.execute(
+        select(TimelineEvent).where(
+            TimelineEvent.event_type == "SHIFT_END",
+            TimelineEvent.created_at >= today_start,
+        )
+    )).scalars().all()
+
+    durations: List[int] = []
+    for end_ev in shift_ends_today:
+        paired_start = (await db.execute(
+            select(TimelineEvent)
+            .where(
+                TimelineEvent.event_type == "SHIFT_START",
+                TimelineEvent.operator_id == end_ev.operator_id,
+                TimelineEvent.machine_id == end_ev.machine_id,
+                TimelineEvent.created_at < end_ev.created_at,
+            )
+            .order_by(TimelineEvent.created_at.desc())
+            .limit(1)
+        )).scalar_one_or_none()
+        if paired_start:
+            dur = int((end_ev.created_at - paired_start.created_at).total_seconds() / 60)
+            durations.append(dur)
+
+    avg_duration_today: Optional[int] = (
+        int(sum(durations) / len(durations)) if durations else None
+    )
+
     return {
         "machines": machines_out,
         "summary": {
@@ -290,6 +368,12 @@ async def fleet_intelligence(
             "active_shifts":     sum(1 for m in machines_out if m["shift_active"]),
             "total_anomalies":   sum(1 for m in machines_out if m["anomaly"]),
             "total_open_issues": sum(m["open_issues"] for m in machines_out),
+        },
+        "shifts": {
+            "active":                          active_shifts_list,
+            "completed_today":                 completed_today,
+            "open_without_end":                open_without_end,
+            "average_duration_today_minutes":  avg_duration_today,
         },
     }
 

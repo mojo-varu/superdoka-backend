@@ -4,7 +4,7 @@ from sqlalchemy import select, and_, or_, func
 from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import logging
 import secrets
 import string
@@ -149,6 +149,72 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
             ),
         })
 
+    # ---------------------------------------------------------------
+    # Shift stats (bulk queries keyed by operator_id)
+    # ---------------------------------------------------------------
+    now         = datetime.utcnow()
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    days_30_ago = now - timedelta(days=30)
+
+    # completed_shifts_today: count of SHIFT_END per operator today
+    shifts_today_rows = (await db.execute(
+        select(TimelineEvent.operator_id, func.count(TimelineEvent.id).label("cnt"))
+        .where(
+            TimelineEvent.event_type == "SHIFT_END",
+            TimelineEvent.created_at >= today_start,
+            TimelineEvent.operator_id.in_(op_ids),
+        )
+        .group_by(TimelineEvent.operator_id)
+    )).all()
+    shifts_today_map: Dict[int, int] = {row.operator_id: row.cnt for row in shifts_today_rows}
+
+    # last_shift_ended_at: most recent SHIFT_END per operator
+    last_end_rows = (await db.execute(
+        select(TimelineEvent.operator_id, func.max(TimelineEvent.created_at).label("last_end"))
+        .where(
+            TimelineEvent.event_type == "SHIFT_END",
+            TimelineEvent.operator_id.in_(op_ids),
+        )
+        .group_by(TimelineEvent.operator_id)
+    )).all()
+    last_end_map: Dict[int, datetime] = {row.operator_id: row.last_end for row in last_end_rows}
+
+    # avg_shift_duration_30d_minutes: fetch all SHIFT_END + SHIFT_START in last 30d, pair them
+    all_shift_events_30d = (await db.execute(
+        select(TimelineEvent)
+        .where(
+            TimelineEvent.event_type.in_(["SHIFT_START", "SHIFT_END"]),
+            TimelineEvent.created_at >= days_30_ago,
+            TimelineEvent.operator_id.in_(op_ids),
+        )
+        .order_by(TimelineEvent.operator_id, TimelineEvent.machine_id, TimelineEvent.created_at)
+    )).scalars().all()
+
+    # Group by (operator_id, machine_id) for pairing
+    from collections import defaultdict
+    events_by_op_machine: Dict = defaultdict(list)
+    for ev in all_shift_events_30d:
+        events_by_op_machine[(ev.operator_id, ev.machine_id)].append(ev)
+
+    # For each operator, collect durations of completed shifts
+    op_durations: Dict[int, list] = defaultdict(list)
+    for (op_id, _machine_id), evs in events_by_op_machine.items():
+        # Walk events in order; pair each SHIFT_END with most recent preceding SHIFT_START
+        last_start = None
+        for ev in evs:
+            if ev.event_type == "SHIFT_START":
+                last_start = ev
+            elif ev.event_type == "SHIFT_END" and last_start is not None:
+                dur = int((ev.created_at - last_start.created_at).total_seconds() / 60)
+                op_durations[op_id].append(dur)
+                last_start = None  # consume the start
+
+    avg_30d_map: Dict[int, Optional[int]] = {}
+    for op_id in op_ids:
+        durs = op_durations.get(op_id, [])
+        avg_30d_map[op_id] = int(sum(durs) / len(durs)) if len(durs) >= 3 else None
+
+    # ---------------------------------------------------------------
     result = []
     for op in operators:
         session = sessions.get(op.id)
@@ -160,6 +226,7 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
                     break
 
         last_at = last_active_map.get(op.id)
+        last_end = last_end_map.get(op.id)
         result.append({
             "id":             op.id,
             "name":           op.name,
@@ -169,6 +236,9 @@ async def list_operators(db: AsyncSession = Depends(get_db)):
             "active_machine": active_machine,
             "machines":       assignments_by_op[op.id],
             "last_active_at": last_at.isoformat() if last_at else None,
+            "completed_shifts_today":         shifts_today_map.get(op.id, 0),
+            "last_shift_ended_at":            last_end.isoformat() if last_end else None,
+            "avg_shift_duration_30d_minutes": avg_30d_map.get(op.id),
         })
 
     return result
