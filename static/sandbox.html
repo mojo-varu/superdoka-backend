@@ -708,7 +708,7 @@ function SummaryTab({ fleetData, events }) {
   const feed          = [...events].reverse();
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", flex:1, minHeight:0, overflow:"hidden" }}>
       <div className="nb-kpi-strip" style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
         <MetricBlock
           label={t('kpi_fleet_uptime')}
@@ -940,7 +940,7 @@ function MachineLogsTab({ events }) {
   };
 
   return (
-    <div style={{ display:"flex", flexDirection:"column", height:"100%", overflow:"hidden" }}>
+    <div style={{ display:"flex", flexDirection:"column", flex:1, minHeight:0, overflow:"hidden" }}>
       <div style={{ display:"flex", gap:8, alignItems:"center", flexWrap:"wrap", padding:"12px 18px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)" }}>
         <span className="nb-label">{t('filter_label')}</span>
         {filters.map(f => (
@@ -1039,7 +1039,7 @@ function FleetTab({ fleetData }) {
   }
 
   return (
-    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
+    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", flex:1, minHeight:0, overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
 
       {/* ── Left card: machine list ── */}
       <div className="nb-card" style={{ display:"flex", flexDirection:"column", overflow:"hidden", maxHeight: isMobile ? 200 : "none", marginRight:14 }}>
@@ -1194,12 +1194,19 @@ function OperatorsTab({ fleetData, events }) {
 
   const [operators,      setOperators]      = React.useState([]);
   const [loading,        setLoading]        = React.useState(true);
-  const [selectedOpId,   setSelectedOpId]   = React.useState(null);
+  const [selectedOpId,   setSelectedOpId]   = React.useState(() => {
+    try { const v = localStorage.getItem('operators_selected_id'); return v ? parseInt(v) : null; } catch { return null; }
+  });
   const [shifts,         setShifts]         = React.useState([]);
   const [shiftsLoading,  setShiftsLoading]  = React.useState(false);
   const [expandedShift, setExpandedShift]   = React.useState(null);
 
-  // Fetch operator list on mount; auto-select first
+  const selectOp = (id) => {
+    setSelectedOpId(id);
+    try { localStorage.setItem('operators_selected_id', id); } catch {}
+  };
+
+  // Fetch operator list on mount; restore selection or fall back to first
   React.useEffect(() => {
     fetch('/api/v1/operator/list')
       .then(r => r.ok ? r.json() : [])
@@ -1207,7 +1214,11 @@ function OperatorsTab({ fleetData, events }) {
         const list = Array.isArray(data) ? data : [];
         setOperators(list);
         setLoading(false);
-        if (list.length > 0 && selectedOpId === null) setSelectedOpId(list[0].id);
+        if (list.length > 0) {
+          const stored = selectedOpId;
+          const valid  = stored && list.some(o => o.id === stored);
+          if (!valid) selectOp(list[0].id);
+        }
       })
       .catch(() => setLoading(false));
   }, []);
@@ -1266,11 +1277,11 @@ function OperatorsTab({ fleetData, events }) {
   return (
     <div style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "280px 1fr",
       gridTemplateRows: isMobile ? "auto 1fr" : "1fr",
-      height:"100%", overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
+      flex:1, minHeight:0, overflow:"hidden", gap:0, padding:14, background:"var(--nb-bg)" }}>
 
       {/* ── Left pane: operator list ── */}
       <div className="nb-card" style={{ display:"flex", flexDirection:"column", overflow:"hidden",
-        minHeight:0, maxHeight: isMobile ? 200 : "none", marginRight: isMobile ? 0 : 14, marginBottom: isMobile ? 10 : 0 }}>
+        maxHeight: isMobile ? 200 : "none", marginRight: isMobile ? 0 : 14, marginBottom: isMobile ? 10 : 0 }}>
         {/* Sky header */}
         <div style={{ padding:"10px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-sky)",
           flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
@@ -1289,65 +1300,64 @@ function OperatorsTab({ fleetData, events }) {
               key={op.id}
               op={op}
               active={selectedOpId === op.id}
-              onClick={() => setSelectedOpId(op.id)}
+              onClick={() => selectOp(op.id)}
             />
           ))}
         </div>
       </div>
 
-      {/* ── Right pane: shifts ── */}
-      <div style={{ display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden", background:"var(--nb-bg)" }}>
-        {!selectedOp ? (
-          <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%",
-            fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
-            {lang === 'ru' ? 'Выберите оператора' : 'Select an operator'}
-          </div>
-        ) : (
-          <>
-            {/* Selected operator header card — fixed, does not scroll */}
-            <div style={{ flexShrink:0, padding:"0 0 10px 0" }}>
-              <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
-                <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", gap:12,
-                  background: selectedOp.is_on_shift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
-                  borderBottom:"2px solid var(--nb-ink)" }}>
-                  <div style={{ width:44, height:44, borderRadius:"50%",
-                    background: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-paper)",
-                    color: selectedOp.is_on_shift ? "#fff" : "var(--nb-ink)",
-                    border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
-                    fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:15, flexShrink:0 }}>
-                    {selectedOp.initials || (selectedOp.name || '').slice(0,2).toUpperCase() || '?'}
-                  </div>
-                  <div style={{ flex:1, minWidth:0 }}>
-                    <div style={{ fontWeight:700, fontSize:16, lineHeight:1.2 }}>{selectedOp.name}</div>
-                    <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600,
-                      textTransform:"uppercase", letterSpacing:".06em", marginTop:3,
-                      color: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
-                      {selectedOp.is_on_shift ? t('op_on_shift') : t('op_off_shift')}
-                    </div>
-                  </div>
-                  {/* Machine pills */}
-                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, justifyContent:"flex-end" }}>
-                    {(selectedOp.machines || []).map(m => (
-                      <span key={m.reg_number} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
-                        padding:"3px 8px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
-                        borderRadius:4, letterSpacing:".02em" }}>
-                        {m.reg_number}
-                      </span>
-                    ))}
-                  </div>
+      {/* ── Right pane: flex column — header pinned, shifts scroll ── */}
+      <div style={{ display:"flex", flexDirection:"column", overflow:"visible", padding:"0 12px 0", gap:12, minHeight:0, height:"100%" }}>
+        {/* Operator header card — pinned above scroll */}
+        {selectedOp && (
+          <div className="nb-card" style={{ padding:0, overflow:"hidden", flexShrink:0 }}>
+            <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", gap:12,
+              background: selectedOp.is_on_shift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
+              borderBottom:"2px solid var(--nb-ink)" }}>
+              <div style={{ width:44, height:44, borderRadius:"50%",
+                background: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-paper)",
+                color: selectedOp.is_on_shift ? "#fff" : "var(--nb-ink)",
+                border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
+                fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:15, flexShrink:0 }}>
+                {selectedOp.initials || (selectedOp.name || '').slice(0,2).toUpperCase() || '?'}
+              </div>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontWeight:700, fontSize:16, lineHeight:1.2 }}>{selectedOp.name}</div>
+                <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600,
+                  textTransform:"uppercase", letterSpacing:".06em", marginTop:3,
+                  color: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
+                  {selectedOp.is_on_shift ? t('op_on_shift') : t('op_off_shift')}
                 </div>
               </div>
-              {/* Section label */}
-              <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
-                textTransform:"uppercase", letterSpacing:".08em", color:"var(--nb-muted)",
-                padding:"8px 2px 2px" }}>
-                {lang === 'ru' ? 'История смен' : 'Shift history'}
+              <div style={{ display:"flex", flexWrap:"wrap", gap:5, justifyContent:"flex-end" }}>
+                {(selectedOp.machines || []).map(m => (
+                  <span key={m.reg_number} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                    padding:"3px 8px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
+                    borderRadius:4, letterSpacing:".02em" }}>
+                    {m.reg_number}
+                  </span>
+                ))}
               </div>
             </div>
+          </div>
+        )}
+        <div className="nb-card nb-scroll" style={{ flex:1, minHeight:0, overflowY:"auto", background:"var(--nb-bg)" }}>
+          {!selectedOp ? (
+            <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:60,
+              fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+              {lang === 'ru' ? 'Выберите оператора' : 'Select an operator'}
+            </div>
+          ) : (
+            <div style={{ padding:12, display:"flex", flexDirection:"column", gap:10 }}>
 
-            {/* Scrollable shifts list */}
-            <div className="nb-scroll" style={{ flex:1, overflowY:"auto", display:"flex",
-              flexDirection:"column", gap:10, paddingBottom:14 }}>
+            {/* Section label */}
+            <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
+              textTransform:"uppercase", letterSpacing:".08em", color:"var(--nb-muted)",
+              padding:"4px 2px 0" }}>
+              {lang === 'ru' ? 'История смен' : 'Shift history'}
+            </div>
+
+            {/* Shift cards */}
             {shiftsLoading ? (
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40,
                 fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
@@ -1590,9 +1600,9 @@ function OperatorsTab({ fleetData, events }) {
                 );
               })
             )}
-            </div>{/* end scrollable shifts list */}
-          </>
+          </div>
         )}
+        </div>
       </div>
     </div>
   );
@@ -1657,7 +1667,7 @@ function FleetIntelligence({ active, onSummaryUpdate }) {
         })}
       </div>
 
-      <div style={{ flex:1, overflow:"hidden" }}>
+      <div style={{ flex:1, minHeight:0, overflow:"hidden", display:"flex", flexDirection:"column" }}>
         {tab === "summary"   && <SummaryTab fleetData={fleetData} events={events} />}
         {tab === "logs"      && <MachineLogsTab events={logEvents} />}
         {tab === "fleet"     && <FleetTab fleetData={fleetData} />}
