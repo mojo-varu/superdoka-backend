@@ -1296,7 +1296,7 @@ function OperatorsTab({ fleetData, events }) {
       </div>
 
       {/* ── Right pane: shifts ── */}
-      <div className="nb-scroll" style={{ overflowY:"auto", minHeight:0, background:"var(--nb-bg)", padding:0, display:"flex", flexDirection:"column", gap:10 }}>
+      <div style={{ display:"flex", flexDirection:"column", minHeight:0, overflow:"hidden", background:"var(--nb-bg)" }}>
         {!selectedOp ? (
           <div style={{ display:"flex", alignItems:"center", justifyContent:"center", height:"100%",
             fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
@@ -1304,47 +1304,50 @@ function OperatorsTab({ fleetData, events }) {
           </div>
         ) : (
           <>
-            {/* Selected operator header card */}
-            <div className="nb-card" style={{ padding:0, overflow:"hidden", flexShrink:0 }}>
-              <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", gap:12,
-                background: selectedOp.is_on_shift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
-                borderBottom:"2px solid var(--nb-ink)" }}>
-                <div style={{ width:44, height:44, borderRadius:"50%",
-                  background: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-paper)",
-                  color: selectedOp.is_on_shift ? "#fff" : "var(--nb-ink)",
-                  border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
-                  fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:15, flexShrink:0 }}>
-                  {selectedOp.initials || (selectedOp.name || '').slice(0,2).toUpperCase() || '?'}
-                </div>
-                <div style={{ flex:1, minWidth:0 }}>
-                  <div style={{ fontWeight:700, fontSize:16, lineHeight:1.2 }}>{selectedOp.name}</div>
-                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600,
-                    textTransform:"uppercase", letterSpacing:".06em", marginTop:3,
-                    color: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
-                    {selectedOp.is_on_shift ? t('op_on_shift') : t('op_off_shift')}
+            {/* Selected operator header card — fixed, does not scroll */}
+            <div style={{ flexShrink:0, padding:"0 0 10px 0" }}>
+              <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+                <div style={{ padding:"14px 16px", display:"flex", alignItems:"center", gap:12,
+                  background: selectedOp.is_on_shift ? "var(--nb-lime)" : "var(--nb-bg-alt)",
+                  borderBottom:"2px solid var(--nb-ink)" }}>
+                  <div style={{ width:44, height:44, borderRadius:"50%",
+                    background: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-paper)",
+                    color: selectedOp.is_on_shift ? "#fff" : "var(--nb-ink)",
+                    border:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", justifyContent:"center",
+                    fontFamily:"var(--nb-mono)", fontWeight:700, fontSize:15, flexShrink:0 }}>
+                    {selectedOp.initials || (selectedOp.name || '').slice(0,2).toUpperCase() || '?'}
+                  </div>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:700, fontSize:16, lineHeight:1.2 }}>{selectedOp.name}</div>
+                    <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:600,
+                      textTransform:"uppercase", letterSpacing:".06em", marginTop:3,
+                      color: selectedOp.is_on_shift ? "var(--nb-ink)" : "var(--nb-muted)" }}>
+                      {selectedOp.is_on_shift ? t('op_on_shift') : t('op_off_shift')}
+                    </div>
+                  </div>
+                  {/* Machine pills */}
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:5, justifyContent:"flex-end" }}>
+                    {(selectedOp.machines || []).map(m => (
+                      <span key={m.reg_number} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
+                        padding:"3px 8px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
+                        borderRadius:4, letterSpacing:".02em" }}>
+                        {m.reg_number}
+                      </span>
+                    ))}
                   </div>
                 </div>
-                {/* Machine pills */}
-                <div style={{ display:"flex", flexWrap:"wrap", gap:5, justifyContent:"flex-end" }}>
-                  {(selectedOp.machines || []).map(m => (
-                    <span key={m.reg_number} style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700,
-                      padding:"3px 8px", background:"var(--nb-paper)", border:"2px solid var(--nb-ink)",
-                      borderRadius:4, letterSpacing:".02em" }}>
-                      {m.reg_number}
-                    </span>
-                  ))}
-                </div>
+              </div>
+              {/* Section label */}
+              <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
+                textTransform:"uppercase", letterSpacing:".08em", color:"var(--nb-muted)",
+                padding:"8px 2px 2px" }}>
+                {lang === 'ru' ? 'История смен' : 'Shift history'}
               </div>
             </div>
 
-            {/* Section label */}
-            <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800,
-              textTransform:"uppercase", letterSpacing:".08em", color:"var(--nb-muted)",
-              padding:"4px 2px" }}>
-              {lang === 'ru' ? 'История смен' : 'Shift history'}
-            </div>
-
-            {/* Shifts list */}
+            {/* Scrollable shifts list */}
+            <div className="nb-scroll" style={{ flex:1, overflowY:"auto", display:"flex",
+              flexDirection:"column", gap:10, paddingBottom:14 }}>
             {shiftsLoading ? (
               <div style={{ display:"flex", alignItems:"center", justifyContent:"center", padding:40,
                 fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
@@ -1587,6 +1590,7 @@ function OperatorsTab({ fleetData, events }) {
                 );
               })
             )}
+            </div>{/* end scrollable shifts list */}
           </>
         )}
       </div>
