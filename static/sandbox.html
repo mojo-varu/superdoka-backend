@@ -1260,15 +1260,18 @@ function FleetIntelligence({ active, onSummaryUpdate }) {
   });
   const [fleetData, setFleetData] = React.useState(null);
   const [events, setEvents] = React.useState([]);
+  const [logEvents, setLogEvents] = React.useState([]);
 
   const fetchAll = React.useCallback(async () => {
     try {
-      const [fi, ev] = await Promise.all([
+      const [fi, ev, logEv] = await Promise.all([
         fetch('/api/v1/vfm/fleet/intelligence').then(r => r.ok ? r.json() : null),
-        fetch('/api/v1/logs/events?limit=50').then(r => r.ok ? r.json() : []),
+        fetch('/api/v1/logs/events?limit=50&days=1').then(r => r.ok ? r.json() : []),
+        fetch('/api/v1/logs/events?limit=200&days=30').then(r => r.ok ? r.json() : []),
       ]);
       if (fi) { setFleetData(fi); if (onSummaryUpdate) onSummaryUpdate(fi.summary || {}); }
       if (Array.isArray(ev)) setEvents(ev);
+      if (Array.isArray(logEv)) setLogEvents(logEv);
     } catch (_) {}
   }, []);
 
@@ -1281,7 +1284,7 @@ function FleetIntelligence({ active, onSummaryUpdate }) {
 
   const tabs = [
     { id:"summary",   label:t('tab_summary'),   icon:"▣" },
-    { id:"logs",      label:t('tab_logs'),       icon:"≡", count:events.length || undefined },
+    { id:"logs",      label:t('tab_logs'),       icon:"≡", count:logEvents.length || undefined },
     { id:"fleet",     label:t('tab_fleet'),      icon:"◫", count:fleetData?.machines?.length || undefined },
     { id:"operators", label:t('tab_operators'),  icon:"◎" },
   ];
@@ -1311,7 +1314,7 @@ function FleetIntelligence({ active, onSummaryUpdate }) {
 
       <div style={{ flex:1, overflow:"hidden" }}>
         {tab === "summary"   && <SummaryTab fleetData={fleetData} events={events} />}
-        {tab === "logs"      && <MachineLogsTab events={events} />}
+        {tab === "logs"      && <MachineLogsTab events={logEvents} />}
         {tab === "fleet"     && <FleetTab fleetData={fleetData} />}
         {tab === "operators" && <OperatorsTab fleetData={fleetData} events={events} />}
       </div>

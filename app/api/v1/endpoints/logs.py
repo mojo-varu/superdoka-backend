@@ -223,15 +223,17 @@ _AV_CLASSES = ["av-a", "av-b", "av-c", "av-d", "av-a"]
 
 
 @logs_router.get("/events")
-async def all_events(limit: int = 100, db: AsyncSession = Depends(get_db)):
+async def all_events(limit: int = 100, days: int = 7, db: AsyncSession = Depends(get_db)):
     """
-    All timeline events from today (most recent first optional).
-    Powers the Event Log panel in the owner screen.
+    Timeline events within the last `days` days (default 7), most recent first.
+    Pass days=1 for today-only (Summary feed), days=30 for Machine Log history.
     """
+    since = datetime.utcnow() - timedelta(days=days)
     rows = (await db.execute(
         select(TimelineEvent, Machine, User)
         .join(Machine, Machine.id == TimelineEvent.machine_id)
         .outerjoin(User, User.id == TimelineEvent.operator_id)
+        .where(TimelineEvent.created_at >= since)
         .order_by(TimelineEvent.created_at.desc())
         .limit(limit)
     )).all()
