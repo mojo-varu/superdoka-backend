@@ -1027,109 +1027,141 @@ function FleetTab({ fleetData }) {
   }
 
   return (
-    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "300px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow: isMobile ? "auto" : "hidden" }}>
-      <div className={isMobile ? "mobile-sidebar-row" : ""} style={{ background:"var(--nb-bg-alt)", borderRight: isMobile ? "none" : "2px solid var(--nb-ink)", borderBottom: isMobile ? "2px solid var(--nb-ink)" : "none", display:"flex", flexDirection:"column", overflow:"hidden", maxHeight: isMobile ? 200 : "none" }}>
-        <div style={{ padding:"12px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-paper)" }}>
-          <div className="nb-label">{lang === 'ru' ? `Мой флот · ${machines.length} машин` : `My Fleet · ${machines.length} machines`}</div>
+    <div className="nb-fleet-grid" style={{ display:"grid", gridTemplateColumns: isMobile ? "1fr" : "260px 1fr", gridTemplateRows: isMobile ? "auto 1fr" : "1fr", height:"100%", overflow:"hidden", gap:0 }}>
+
+      {/* ── Left card: machine list ── */}
+      <div style={{ display:"flex", flexDirection:"column", overflow:"hidden", borderRight: isMobile ? "none" : "2px solid var(--nb-ink)", maxHeight: isMobile ? 200 : "none" }}>
+        {/* header */}
+        <div style={{ padding:"10px 14px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-ink)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between" }}>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em", color:"#fff" }}>
+            {lang === 'ru' ? 'Мой флот' : 'My Fleet'}
+          </span>
+          <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, color:"rgba(255,255,255,0.5)" }}>
+            {machines.length} {lang === 'ru' ? 'машин' : 'machines'}
+          </span>
         </div>
-        <div className="nb-scroll" style={{ overflowY:"auto", flex:1 }}>
-          {machines.map((mm) => (
-            <div key={mm.reg_number} onClick={() => setSelected(mm.reg_number)}
-              style={{ padding:"12px 14px", cursor:"pointer", background:selected===mm.reg_number?"var(--nb-yellow)":"transparent", borderBottom:"2px solid var(--nb-ink)", display:"flex", flexDirection:"column", gap:4 }}>
-              <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                <span style={{ fontFamily:"var(--nb-mono)", fontSize:13, fontWeight:800, letterSpacing:".02em", whiteSpace:"nowrap" }}>{mm.alias || mm.reg_number}</span>
-                <span style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={(mm.status || 'idle').toLowerCase()} /></span>
+        {/* list */}
+        <div className="nb-scroll" style={{ overflowY:"auto", flex:1, background:"var(--nb-bg-alt)" }}>
+          {machines.map((mm) => {
+            const isSelected = selected === mm.reg_number;
+            const hasIssues  = (mm.open_issues || 0) > 0;
+            return (
+              <div key={mm.reg_number} onClick={() => setSelected(mm.reg_number)}
+                style={{ padding:"10px 14px", cursor:"pointer", borderBottom:"2px solid var(--nb-ink)", transition:"background .1s",
+                  background: isSelected ? "var(--nb-yellow)" : "var(--nb-paper)",
+                  boxShadow: isSelected ? "inset 4px 0 0 0 var(--nb-ink)" : "none",
+                  display:"flex", alignItems:"center", gap:10 }}>
+                {/* machine type icon pill */}
+                <div style={{ width:32, height:32, borderRadius:4, border:"2px solid var(--nb-ink)", background: isSelected ? "var(--nb-ink)" : "var(--nb-bg-alt)",
+                  display:"flex", alignItems:"center", justifyContent:"center", flexShrink:0,
+                  fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800, color: isSelected ? "#fff" : "var(--nb-muted)",
+                  textTransform:"uppercase", letterSpacing:"-.01em", lineHeight:1.1, textAlign:"center", padding:"2px" }}>
+                  {(mm.type || "M").slice(0,3)}
+                </div>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ display:"flex", alignItems:"center", gap:6 }}>
+                    <span style={{ fontFamily:"var(--nb-mono)", fontSize:12, fontWeight:800, letterSpacing:".02em" }}>{mm.alias || mm.reg_number}</span>
+                    {hasIssues && <span style={{ fontFamily:"var(--nb-mono)", fontSize:9, fontWeight:800, background:"var(--nb-coral)", color:"#fff", padding:"1px 5px", borderRadius:3, border:"1.5px solid var(--nb-ink)" }}>!</span>}
+                    <span style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={(mm.status || 'idle').toLowerCase()} /></span>
+                  </div>
+                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2, whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
+                    {mm.shift_active ? (lang === 'ru' ? '● смена активна' : '● shift active') : (lang === 'ru' ? '○ нет смены' : '○ idle')}
+                  </div>
+                </div>
               </div>
-              <div style={{ fontSize:12, color:"var(--nb-ink-soft)" }}>{mm.type}</div>
-              <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, color:"var(--nb-muted)", whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis" }}>
-                {mm.shift_active
-                  ? (lang === 'ru' ? 'смена активна' : 'shift active')
-                  : t('no_operator')}
-                {mm.open_issues > 0 && ` · ${mm.open_issues} ${lang === 'ru' ? 'проблем' : 'issues'}`}
-              </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
 
-      <div className="nb-scroll" style={{ overflowY:"auto" }}>
+      {/* ── Right card: detail ── */}
+      <div className="nb-scroll" style={{ overflowY:"auto", background:"var(--nb-bg)" }}>
         {!detail ? (
-          <div style={{ padding:40, fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>
+          <div style={{ padding:40, fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)", textAlign:"center" }}>
             {lang === 'ru' ? 'Загрузка…' : 'Loading…'}
           </div>
         ) : (
-          <>
-            <div className="fleet-detail-header" style={{ padding:"20px 22px", borderBottom:"var(--nb-border-thick)", background:"var(--nb-bg-alt)", borderLeft:"8px solid var(--nb-yellow)", display:"flex", alignItems:"flex-start", gap:16 }}>
-              <div style={{ minWidth:0, flex:1 }}>
-                <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, textTransform:"uppercase", letterSpacing:".1em", marginBottom:4 }}>{detail.machine_type}</div>
-                <div className="fleet-detail-reg" style={{ fontSize:36, fontWeight:800, lineHeight:1, letterSpacing:"-.02em", whiteSpace:"nowrap" }}>{selected}</div>
-                <div className="fleet-detail-model" style={{ fontFamily:"var(--nb-mono)", fontSize:12, marginTop:6, color:"var(--nb-ink-soft)", whiteSpace:"nowrap" }}>{detail.model}</div>
-                <div className="fleet-detail-op" style={{ fontSize:13, fontWeight:600, marginTop:8, whiteSpace:"nowrap" }}>
-                  {detail.active_operator_name ? t('operator_of', detail.active_operator_name) : t('no_active_op')}
+          <div style={{ padding:14, display:"flex", flexDirection:"column", gap:12 }}>
+
+            {/* Machine identity card */}
+            <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+              <div style={{ padding:"12px 14px", background: detail.status === 'WORKING' ? "var(--nb-lime)" : "var(--nb-bg-alt)", borderBottom:"2px solid var(--nb-ink)", display:"flex", alignItems:"center", gap:12 }}>
+                <div style={{ flex:1, minWidth:0 }}>
+                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, textTransform:"uppercase", letterSpacing:".1em", color:"var(--nb-muted)", marginBottom:2 }}>{detail.machine_type}</div>
+                  <div style={{ fontSize:22, fontWeight:800, lineHeight:1, letterSpacing:"-.01em" }}>{detail.model || selected}</div>
+                  <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, marginTop:4, color:"var(--nb-ink-soft)" }}>
+                    {detail.active_operator_name ? t('operator_of', detail.active_operator_name) : t('no_active_op')}
+                  </div>
                 </div>
+                <div style={{ flexShrink:0 }}><StatusPill status={(detail.status || 'idle').toLowerCase()} /></div>
               </div>
-              <div style={{ marginLeft:"auto", flexShrink:0 }}><StatusPill status={(detail.status || 'idle').toLowerCase()} /></div>
+              {/* KPI row */}
+              <div style={{ display:"flex", background:"var(--nb-paper)" }}>
+                {(() => {
+                  const mt = detail.metrics || {};
+                  const fr = mt.fuel_rate || 0;
+                  return (
+                    <>
+                      <div style={{ flex:1, padding:"10px 12px", borderRight:"2px solid var(--nb-ink)" }}>
+                        <div className="nb-label" style={{ fontSize:9 }}>{t('kpi_fuel')}</div>
+                        <div style={{ fontSize:20, fontWeight:800, marginTop:2 }}>{mt.fuel_today ?? 0}<span style={{ fontSize:11, fontWeight:600, marginLeft:2 }}>L</span></div>
+                        <div style={{ fontFamily:"var(--nb-mono)", fontSize:9, color: fr > 35 ? "var(--nb-bad)" : "var(--nb-muted)", marginTop:2 }}>{fr > 0 ? `${fr} л/ч` : t('no_activity')}</div>
+                      </div>
+                      <div style={{ flex:1, padding:"10px 12px", borderRight:"2px solid var(--nb-ink)" }}>
+                        <div className="nb-label" style={{ fontSize:9 }}>{t('kpi_hours')}</div>
+                        <div style={{ fontSize:20, fontWeight:800, marginTop:2 }}>{mt.hours_today ?? 0}<span style={{ fontSize:11, fontWeight:600, marginLeft:2 }}>h</span></div>
+                        <div style={{ fontFamily:"var(--nb-mono)", fontSize:9, color:"var(--nb-muted)", marginTop:2 }}>{(mt.hours_today||0) > 0 ? t('on_track') : t('no_activity')}</div>
+                      </div>
+                      <div style={{ flex:1, padding:"10px 12px", background:(mt.open_issues||0)>0?"var(--nb-yellow)":"var(--nb-paper)" }}>
+                        <div className="nb-label" style={{ fontSize:9 }}>{t('kpi_open_issues')}</div>
+                        <div style={{ fontSize:20, fontWeight:800, marginTop:2 }}>{mt.open_issues ?? 0}</div>
+                        <div style={{ fontFamily:"var(--nb-mono)", fontSize:9, color:(mt.open_issues||0)>0?"#791f1f":"var(--nb-muted)", marginTop:2, textTransform:"uppercase" }}>
+                          {(mt.open_issues||0) > 0 ? t('action_needed') : t('status_clear')}
+                        </div>
+                      </div>
+                    </>
+                  );
+                })()}
+              </div>
             </div>
 
-            <div style={{ display:"flex", borderBottom:"var(--nb-border-thick)", background:"var(--nb-paper)" }}>
-              {(() => {
-                const mt = detail.metrics || {};
-                const fr = mt.fuel_rate || 0;
-                return (
-                  <>
-                    <MetricBlock label={t('kpi_fuel')} value={mt.fuel_today ?? 0} unit="L"
-                      sub={fr > 0 ? `${fr} ${lang === 'ru' ? 'л/ч' : 'L/h'}` : t('no_activity')}
-                      subTone={fr > 35 ? "bad" : "good"} />
-                    <MetricBlock label={t('kpi_hours')} value={mt.hours_today ?? 0} unit="h"
-                      sub={(mt.hours_today || 0) > 0 ? t('on_track') : t('no_activity')}
-                      subTone={(mt.hours_today || 0) > 0 ? "good" : "muted"} />
-                    <MetricBlock label={t('kpi_production')} value={mt.production_today ?? 0}
-                      sub={(mt.production_today || 0) > 0 ? t('logged') : t('not_logged')}
-                      subTone="muted" />
-                    <div style={{ padding:"16px 18px", background:(mt.open_issues||0)>0?"var(--nb-coral)":"var(--nb-paper)", flex:1 }}>
-                      <div className="nb-label">{t('kpi_open_issues')}</div>
-                      <div style={{ fontSize:30, fontWeight:800, marginTop:6, lineHeight:1 }}>{mt.open_issues ?? 0}</div>
-                      <div style={{ fontFamily:"var(--nb-mono)", fontSize:10.5, fontWeight:700, color:(mt.open_issues||0)>0?"#791f1f":"var(--nb-muted)", marginTop:6, textTransform:"uppercase", letterSpacing:".05em" }}>
-                        {(mt.open_issues||0) > 0 ? t('action_needed') : t('status_clear')}
-                      </div>
-                    </div>
-                  </>
-                );
-              })()}
-            </div>
-
-            <div style={{ padding:18 }}>
-              {detail.open_issues && detail.open_issues.length > 0 && (
-                <>
-                  <div className="nb-label" style={{ marginBottom:8 }}>{t('kpi_open_issues')}</div>
-                  {detail.open_issues.map((iss, i) => (
-                    <div key={i} className="nb-card" style={{ padding:14, marginBottom:14, background:"var(--nb-yellow)" }}>
-                      <div style={{ fontSize:15, fontWeight:700, lineHeight:1.3 }}>{iss.title}</div>
-                      <div style={{ fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-ink-soft)", marginTop:4 }}>{iss.meta}</div>
-                      {iss.original && <div style={{ fontSize:12, fontStyle:"italic", color:"var(--nb-ink-soft)", marginTop:6 }}>"{iss.original}"</div>}
-                    </div>
-                  ))}
-                </>
-              )}
-
-              <div className="nb-label" style={{ marginBottom:8 }}>{t('todays_log', selected)}</div>
-              {!detail.timeline || detail.timeline.length === 0 ? (
-                <div className="nb-card" style={{ padding:20, textAlign:"center", fontFamily:"var(--nb-mono)", fontSize:12, color:"var(--nb-muted)" }}>{t('no_activity_today')}</div>
-              ) : (
-                <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
-                  {[...detail.timeline].reverse().map((e, i, arr) => (
-                    <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"10px 14px", borderBottom:i<arr.length-1?"1.5px solid var(--nb-ink)":"none", background:"var(--nb-paper)" }}>
-                      <span className="log-card-time" style={{ fontFamily:"var(--nb-mono)", fontSize:11, fontWeight:700, minWidth:42, paddingTop:2 }}>{e.time}</span>
-                      <div style={{ flex:1, minWidth:0 }}>
-                        <div className="log-card-text" style={{ fontSize:13, lineHeight:1.4 }}>{e.raw_text}</div>
-                        <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:2 }}>{e.extracted}</div>
-                      </div>
-                    </div>
-                  ))}
+            {/* Open issues card */}
+            {detail.open_issues && detail.open_issues.length > 0 && (
+              <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+                <div style={{ padding:"8px 12px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-yellow)", fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em" }}>
+                  ⚠ {t('kpi_open_issues')}
                 </div>
+                {detail.open_issues.map((iss, i) => (
+                  <div key={i} style={{ padding:"10px 12px", borderBottom: i < detail.open_issues.length-1 ? "1.5px solid var(--nb-ink)" : "none", background:"var(--nb-paper)" }}>
+                    <div style={{ fontSize:13, fontWeight:700, lineHeight:1.3 }}>{iss.description || iss.title}</div>
+                    {iss.meta && <div style={{ fontFamily:"var(--nb-mono)", fontSize:10, color:"var(--nb-muted)", marginTop:3 }}>{iss.meta}</div>}
+                    {iss.original && <div style={{ fontSize:11, fontStyle:"italic", color:"var(--nb-ink-soft)", marginTop:4 }}>"{iss.original}"</div>}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Timeline card */}
+            <div className="nb-card" style={{ padding:0, overflow:"hidden" }}>
+              <div style={{ padding:"8px 12px", borderBottom:"2px solid var(--nb-ink)", background:"var(--nb-bg-alt)", fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:800, textTransform:"uppercase", letterSpacing:".08em" }}>
+                {t('todays_log', selected)}
+              </div>
+              {!detail.timeline || detail.timeline.length === 0 ? (
+                <div style={{ padding:"16px 14px", fontFamily:"var(--nb-mono)", fontSize:11, color:"var(--nb-muted)", textAlign:"center" }}>{t('no_activity_today')}</div>
+              ) : (
+                [...detail.timeline].reverse().map((e, i, arr) => (
+                  <div key={i} style={{ display:"flex", gap:10, alignItems:"flex-start", padding:"9px 12px", borderBottom: i < arr.length-1 ? "1.5px solid var(--nb-ink)" : "none", background:"var(--nb-paper)" }}>
+                    <span style={{ fontFamily:"var(--nb-mono)", fontSize:10, fontWeight:700, minWidth:36, color:"var(--nb-muted)", paddingTop:2 }}>{e.time}</span>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ fontSize:12.5, lineHeight:1.4 }}>{e.raw_text}</div>
+                      <div style={{ fontFamily:"var(--nb-mono)", fontSize:9.5, color:"var(--nb-muted)", marginTop:2 }}>{e.extracted}</div>
+                    </div>
+                  </div>
+                ))
               )}
             </div>
-          </>
+
+          </div>
         )}
       </div>
     </div>
