@@ -571,9 +571,10 @@ class ConversationLog(Base):
     intent        = Column(String(64), nullable=True)
     confidence    = Column(Float, nullable=True)
     policy_action = Column(String(32), nullable=True)   # CONFIRM | CLARIFY | ALERT | NUDGE | ESCALATE
-    task_type     = Column(String(8),  nullable=True)   # T1–T8
-    vfm_reply     = Column(Text, nullable=True)
-    source        = Column(String(32), nullable=True)
+    task_type            = Column(String(8),  nullable=True)   # T1–T8
+    vfm_reply            = Column(Text, nullable=True)
+    rephrasing_rejected  = Column(Boolean, default=False, nullable=False)
+    source               = Column(String(32), nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
     __table_args__ = (

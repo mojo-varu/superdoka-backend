@@ -96,14 +96,16 @@ async def process_update(
         policy_str  = processed.confidence_route.value if hasattr(processed.confidence_route, "value") else str(processed.confidence_route or "")
         source_str  = processed.source.value if hasattr(processed.source, "value") else str(processed.source or "")
         log_entry = ConversationLog(
-            operator_id   = processed.operator_db_id,
-            machine_id    = processed.machine_id,
-            raw_text      = processed.raw_text,
-            intent        = intent_str or None,
-            confidence    = processed.confidence or None,
-            policy_action = policy_str or None,
-            vfm_reply     = processed.reply_text or None,
-            source        = source_str or None,
+            operator_id          = processed.operator_db_id,
+            machine_id           = processed.machine_id,
+            raw_text             = processed.raw_text,
+            intent               = intent_str or None,
+            confidence           = processed.confidence or None,
+            policy_action        = policy_str or None,
+            task_type            = getattr(processed, '_task_type', None),
+            vfm_reply            = processed.reply_text or None,
+            rephrasing_rejected  = getattr(processed, '_rephrasing_rejected', False),
+            source               = source_str or None,
         )
         db.add(log_entry)
         await db.commit()

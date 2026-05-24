@@ -46,20 +46,24 @@ FIELD_QUESTIONS: dict[str, str] = {
     "notes":          "Уточни детали.",
 }
 
-# ── T1 confirmation templates per intent ─────────────────────────────────────
+# ── T1 confirmation templates — shift/admin intents ──────────────────────────
 T1_TEMPLATES: dict[str, str] = {
-    "fuel_log":       "Записал: {fuel_volume}л топлива ✓",
-    "hours_log":      "Записал: {hours}ч наработки ✓",
     "shift_start":    "Смена открыта. {machine_name} активна. Удачной смены!",
     "shift_end":      "Смена закрыта. Итоги зафиксированы.",
+    "machine_switch": "Переключено на {machine_name} ✓",
+    "status_update":  "Понял. Если что по машине — пиши.",
+    "handover_note":  "Передача смены записана ✓",
+    "clarification_response": "Принято ✓",
+}
+
+# ── T2 confirmation templates — data log intents ──────────────────────────────
+T2_TEMPLATES: dict[str, str] = {
+    "fuel_log":       "Принял, {fuel_volume} литров топлива записал.",
+    "hours_log":      "Принял, {hours} часов наработки записал.",
+    "issue_report":   "Проблема записана: {description}. Приоритет — {priority}.",
     "production_log": "Записал: {production_qty} {production_unit} ✓",
     "parts_request":  "Запрос зафиксирован: {description}. Передано владельцу.",
     "inspection_check": "Осмотр записан. Замечаний нет ✓",
-    "machine_switch": "Переключено на {machine_name} ✓",
-    "status_update":  "Понял. Если что по машине — пиши.",
-    "issue_report":   "Зафиксировано: {description}. Приоритет: {priority}.",
-    "handover_note":  "Передача смены записана ✓",
-    "clarification_response": "Принято ✓",
 }
 
 # ── Severity → priority label ─────────────────────────────────────────────────
@@ -128,13 +132,16 @@ def route(
     if missing_fields:
         return RoutingDecision("T3", None, True)
 
-    # ── T1: clean extraction, high confidence ────────────────────────────────
+    # ── T1/T2: clean extraction, high confidence ─────────────────────────────
+    # T1 = shift/admin confirmations, T2 = data log confirmations
+    _ALL_TEMPLATES = {**T1_TEMPLATES, **T2_TEMPLATES}
     if (confidence >= 0.85
             and not missing_fields
-            and intent in T1_TEMPLATES):
+            and intent in _ALL_TEMPLATES):
         reply = _build_t1_reply(intent, entities, session, context_graph)
         if reply:
-            return RoutingDecision("T1", reply, False)
+            t = "T2" if intent in T2_TEMPLATES else "T1"
+            return RoutingDecision(t, reply, False)
 
     # ── T3 fallback: LLM handles ambiguous cases ─────────────────────────────
     return RoutingDecision("T3", None, True)
@@ -149,7 +156,7 @@ def _build_t1_reply(
     """
     Build a T1 template reply. Returns None if template cannot be filled.
     """
-    template = T1_TEMPLATES.get(intent)
+    template = T1_TEMPLATES.get(intent) or T2_TEMPLATES.get(intent)
     if not template:
         return None
 

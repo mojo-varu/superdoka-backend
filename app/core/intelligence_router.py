@@ -112,8 +112,10 @@ class ExtractionResult:
     confidence_route: str              = "llm"   # auto | confirm | llm
     via_classifier:   bool             = False
     via_ner:          bool             = False
-    clarification:    Optional[str]    = None
-    errors:           list[str]        = field(default_factory=list)
+    clarification:       Optional[str]    = None
+    task_type:           Optional[str]    = None   # T1–T8, set in Stage 4
+    rephrasing_rejected: bool            = False
+    errors:              list[str]        = field(default_factory=list)
 
 
 # ── Stage 1 — Continuity check ───────────────────────────────────────────────
@@ -484,6 +486,25 @@ async def run_intelligence(
 
     # ── Compute confidence route ──────────────────────────────────────────────
     effective_conf = clf_conf if entities else min(clf_conf, ner_conf) if ner_conf > 0 else clf_conf
+
+    # Two-signal boost: confirm-range confidence + successful entity extraction
+    # treats the message as auto-confidence for operational intents.
+    # Only fires when NER found the primary entity — does not change result.confidence.
+    _PRIMARY_ENTITY = {
+        "fuel_log":     "fuel_volume",
+        "hours_log":    "hours",
+        "issue_report": "description",
+    }
+    _primary = _PRIMARY_ENTITY.get(intent)
+    if (CONF_CONFIRM <= effective_conf < CONF_AUTO
+            and _primary
+            and entities.get(_primary)):
+        logger.info(
+            f"[Router] Two-signal boost: {intent} conf={effective_conf:.3f} "
+            f"entity={_primary}={entities[_primary]!r} → treating as auto"
+        )
+        effective_conf = CONF_AUTO
+
     if effective_conf >= CONF_AUTO and not result.missing_fields:
         route = "auto"
     elif effective_conf >= CONF_CONFIRM:
@@ -493,7 +514,7 @@ async def run_intelligence(
 
     result.intent           = intent
     result.entities         = entities
-    result.confidence       = effective_conf
+    result.confidence       = clf_conf if entities else min(clf_conf, ner_conf) if ner_conf > 0 else clf_conf  # raw score, unaffected by boost
     result.confidence_route = route
 
     # ── Stage 4: Agency response via TaskRouter ───────────────────────────
@@ -508,6 +529,8 @@ async def run_intelligence(
             is_proactive   = is_proactive,
             recipient      = "operator",
         )
+
+        result.task_type = decision.task_type
 
         if not decision.needs_llm:
             result.clarification = decision.reply

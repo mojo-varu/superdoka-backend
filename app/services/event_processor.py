@@ -29,6 +29,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.context_llm  import context_extract, ExtractionResult, _call_llm
+from app.core.rephraser import rephrase_safe
 from app.core.text_normaliser import normalise_plate
 
 _PLATE_RE = re.compile(r'\b[А-ЯA-Zа-яa-z]\d{3}[А-ЯA-Zа-яa-z]{2}\d{2,3}\b')
@@ -47,9 +48,9 @@ logger = logging.getLogger(__name__)
 
 # Reply templates (Russian)
 REPLY_TEMPLATES = {
-    "fuel_auto":        "Записал: {fuel_volume}л топлива ✓",
-    "hours_auto":       "Записал: {hours}ч наработки ✓",
-    "issue_auto":       "Зафиксировал: {description}. Приоритет: {priority}.",
+    "fuel_auto":        "Принял, {fuel_volume} литров топлива записал.",
+    "hours_auto":       "Принял, {hours} часов наработки записал.",
+    "issue_auto":       "Проблема записана: {description}. Приоритет — {priority}.",
     "shift_start":      "Смена открыта. Машина {reg_number} активна. Удачной смены!",
     "shift_end":        "Смена закончена. Сейчас рассчитаю итоги...",
     "needs_confirm":    "{summary}\n\nВсё верно? [Верно ✓] [Исправить ✗]",
@@ -92,6 +93,8 @@ class EventProcessor:
         All DB writes are in a single transaction.
         """
         try:
+            object.__setattr__(update, '_reply_is_llm', False)
+
             # Step 1 — resolve operator DB record
             await self._resolve_operator(db, update)
 
@@ -133,9 +136,20 @@ class EventProcessor:
                 real_missing = any(f in REAL_FIELDS for f in (getattr(update, '_missing_fields', None) or []))
                 if not real_missing:
                     update.reply_text = await self._agency_reply(update, getattr(update, '_session_ctx', None))
+                    object.__setattr__(update, '_reply_is_llm', True)
                 # else: reply_text already set by clarification handler in step 2
             else:
                 self._build_reply(update)
+
+            # Rephrase happy-path replies. T8 exclusion handled inside rephrase_safe.
+            # Error/rejection strings set via early returns bypass this block.
+            if update.reply_text and not getattr(update, '_reply_is_llm', False):
+                task_type = getattr(update, '_task_type', None)
+                update.reply_text, rephrased = await rephrase_safe(
+                    update.reply_text,
+                    task_type=task_type,
+                )
+                object.__setattr__(update, '_rephrasing_rejected', not rephrased)
 
             update.mark_processed()
             return update
@@ -181,6 +195,7 @@ class EventProcessor:
         update.confidence_route = result.confidence_route
         object.__setattr__(update, '_missing_fields', result.missing_fields)
         object.__setattr__(update, '_session_ctx', session)
+        object.__setattr__(update, '_task_type', result.task_type)
 
         REAL_FIELDS = {
             "fuel_volume", "hours", "reg_number", "description",
@@ -188,10 +203,13 @@ class EventProcessor:
         }
         if result.clarification:
             missing = result.missing_fields or []
+            _is_llm = result.task_type not in ("T1", "T2")
             if not missing:
                 update.reply_text = result.clarification
+                object.__setattr__(update, '_reply_is_llm', _is_llm)
             elif any(f in REAL_FIELDS for f in missing):
                 update.reply_text = result.clarification
+                object.__setattr__(update, '_reply_is_llm', _is_llm)
 
         for e in result.errors:
             update.add_error(e)
@@ -325,7 +343,8 @@ class EventProcessor:
         await db.commit()
 
         display_name = machine.alias or machine.reg_number
-        update.reply_text = REPLY_TEMPLATES["shift_start"].format(reg_number=display_name)
+        reply = REPLY_TEMPLATES["shift_start"].format(reg_number=display_name)
+        update.reply_text, _ = await rephrase_safe(reply, task_type="T1")
         update.mark_processed()
         return update
 
@@ -353,7 +372,7 @@ class EventProcessor:
             db.add(event)
             await db.commit()
 
-        update.reply_text = REPLY_TEMPLATES["shift_end"]
+        update.reply_text, _ = await rephrase_safe(REPLY_TEMPLATES["shift_end"], task_type="T1_END")
         update.mark_processed()
         return update
 
