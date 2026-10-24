@@ -17,7 +17,7 @@ import os
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -27,6 +27,7 @@ from app.db.models import ActiveSession, ConversationLog, FuelLog, HoursLog, Iss
 from app.schemas.fleet_update import FleetUpdate, MessageSource, Modality
 from app.core.model_loader import models_ready
 from app.services.event_processor import event_processor
+from app.services.correction_service import apply_correction, EventNotFound
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/vfm", tags=["VFM"])
@@ -137,30 +138,20 @@ async def correct_event(
     Operator taps "Исправить ✗" — submit a correction to a previous event.
     Creates a new CORRECTION TimelineEvent pointing to the original.
     Original event is preserved (immutable ledger).
+
+    Delegates to app.services.correction_service.apply_correction, which is
+    also called in-process (not over HTTP) by app/channels/telegram's ✏️ flow
+    (SPEC-015-R08) — keeping exactly one correction code path.
     """
-    result = await db.execute(
-        select(TimelineEvent).where(TimelineEvent.id == event_id)
-    )
-    original = result.scalar_one_or_none()
-    if not original:
+    try:
+        correction_event = await apply_correction(
+            db, event_id, correction.field, correction.new_value
+        )
+    except EventNotFound:
         raise HTTPException(status_code=404, detail="Event not found")
 
-    old_value = original.content.get(correction.field)
-    correction_event = TimelineEvent(
-        machine_id         = original.machine_id,
-        operator_id        = original.operator_id,
-        event_type         = "CORRECTION",
-        content            = {
-            "original_event_id": event_id,
-            "field":     correction.field,
-            "old_value": old_value,
-            "new_value": correction.new_value,
-        },
-        raw_text           = f"Correction: {correction.field} {old_value} → {correction.new_value}",
-        corrected_event_id = event_id,
-    )
-    db.add(correction_event)
     await db.commit()
+    await db.refresh(correction_event)
 
     return {"status": "corrected", "correction_event_id": correction_event.id}
 
@@ -196,6 +187,19 @@ async def fleet_status(
             for s in states
         ],
     }
+
+
+@router.get("/metrics/correction-rate")
+async def operator_correction_rate(
+    operator_id: Optional[int] = Query(default=None),
+    db: AsyncSession = Depends(get_async_session),
+) -> Dict[str, Any]:
+    """
+    WP-G / SPEC-010-R12: corrections / confirmed events, last 30 days by
+    default. Minimal — full harness metrics are SPEC-010, out of scope here.
+    """
+    from app.services.metrics import correction_rate
+    return await correction_rate(db, operator_id=operator_id)
 
 
 @router.get("/fleet/intelligence")

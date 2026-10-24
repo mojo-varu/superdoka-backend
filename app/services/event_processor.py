@@ -22,13 +22,13 @@ from __future__ import annotations
 
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Optional
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.context_llm  import context_extract, ExtractionResult, _call_llm
+from app.core.context_llm  import context_extract, ExtractionResult
 from app.core.rephraser import rephrase_safe
 from app.core.text_normaliser import normalise_plate
 
@@ -130,13 +130,24 @@ class EventProcessor:
             # Step 7 — evaluate rules
             await self._evaluate_rules(db, update)
 
-            # Step 8 — agency reply for off-topic, else standard reply builder
+            # Step 8 — off-topic reply via the single canonical T4 template
+            # path, else standard reply builder. WP-G: this used to call
+            # self._agency_reply() here, a third, independent, free-form LLM
+            # call that overwrote whatever task_router/intelligence_router
+            # had already decided for this message (see
+            # task_router.build_offtopic_reply's docstring for the full
+            # three-path history). Collapsed to one path, template-only,
+            # matching ARCHITECTURE_VERBALIZED.md invariant 1 (T4 is always
+            # deterministic).
             intent_val = getattr(update.intent, 'value', update.intent)
             if intent_val in ('unknown', 'clarification_needed'):
                 real_missing = any(f in REAL_FIELDS for f in (getattr(update, '_missing_fields', None) or []))
                 if not real_missing:
-                    update.reply_text = await self._agency_reply(update, getattr(update, '_session_ctx', None))
-                    object.__setattr__(update, '_reply_is_llm', True)
+                    from app.core.task_router import build_offtopic_reply
+                    context_graph = getattr(update, '_context_graph', None) or {}
+                    session_ctx = getattr(update, '_session_ctx', None)
+                    update.reply_text = build_offtopic_reply(context_graph, session_ctx)
+                    object.__setattr__(update, '_reply_is_llm', False)
                 # else: reply_text already set by clarification handler in step 2
             else:
                 self._build_reply(update)
@@ -244,11 +255,16 @@ class EventProcessor:
         # Fetch active session for shift totals
         session = await session_service.get_active_session(db, update.operator_db_id)
 
+        # WP-G / SPEC-004-R10: computed from events in the org-local calendar
+        # day, not the never-reset MachineState counters (see daily_totals.py).
+        from app.services.daily_totals import compute_today_totals
+        fuel_today, hours_today = await compute_today_totals(db, machine_id)
+
         update.session = SessionContext(
             machine_id          = machine_id,
             open_issue_count    = state.open_issue_count if state else 0,
-            fuel_logged_today   = state.fuel_added_today if state else 0.0,
-            hours_logged_today  = state.hours_worked_today if state else 0.0,
+            fuel_logged_today   = fuel_today,
+            hours_logged_today  = hours_today,
             shift_started_at    = session.started_at if session else None,
             minutes_on_shift    = (
                 int((datetime.utcnow() - session.started_at).total_seconds() / 60)
@@ -380,9 +396,51 @@ class EventProcessor:
 
     async def _write_events(self, db: AsyncSession, update: FleetUpdate) -> None:
         """
-        Atomic write: TimelineEvent + specific log table + MachineState UPSERT.
-        On CONFIRM route, writes with a provisional flag and sets
-        needs_confirmation=True so ActionPlanner adds inline keyboard.
+        WP-E / ADR-0023: AUTO-route events commit immediately via
+        _commit_event (unchanged behaviour). CONFIRM-route and implausible
+        results are staged in `pending_confirmations` instead — no
+        TimelineEvent exists until the operator taps ✅. This fixes the
+        pre-bot deviation where _write_events committed a TimelineEvent
+        unconditionally and only set needs_confirmation=True afterward
+        (confirmed in MVP_ASSESSMENT_FOR_CLAUDE.md §4 / ADR-0023's Context).
+        app/services/confirmation_service.promote_pending_confirmation is
+        what the ✅ callback calls to actually commit, reusing _commit_event.
+        """
+        if update.confidence_route == ConfidenceRoute.CONFIRM:
+            import os
+            from app.db.models import PendingConfirmation
+            # ADR-0020: the engine must never import app/channels. The
+            # expiry window (OQ-015-2 / ADR-0023) is read directly from the
+            # same env var name app/channels/settings.py uses, independently,
+            # rather than importing that module. A caught, real violation
+            # from tests/channels/test_import_boundary.py — see final report.
+            expiry_hours = int(os.getenv("BOT_CALLBACK_EXPIRY_HOURS", "24"))
+
+            pending = PendingConfirmation(
+                operator_id=update.operator_db_id,
+                machine_id=update.machine_id,
+                event_type=self._intent_to_event_type(update.intent),
+                payload=update.entities,
+                raw_text=update.raw_text,
+                proposed_at=datetime.utcnow(),
+                expires_at=datetime.utcnow() + timedelta(hours=expiry_hours),
+            )
+            db.add(pending)
+            await db.commit()
+            await db.refresh(pending)
+            object.__setattr__(update, "_pending_confirmation_id", pending.id)
+            update.needs_confirmation = True
+            return
+
+        await self._commit_event(db, update)
+
+    async def _commit_event(self, db: AsyncSession, update: FleetUpdate) -> None:
+        """
+        The actual atomic write: TimelineEvent + specific log table +
+        MachineState UPSERT + session totals, in one transaction. Called
+        directly for AUTO-route events, and by
+        confirmation_service.promote_pending_confirmation for a confirmed
+        pending item — one write path, two callers (ADR-0023).
         """
         machine_id  = update.machine_id
         operator_id = update.operator_db_id
@@ -424,10 +482,6 @@ class EventProcessor:
         )
 
         await db.commit()
-
-        # CONFIRM route → flag for inline keyboard
-        if update.confidence_route == ConfidenceRoute.CONFIRM:
-            update.needs_confirmation = True
 
     async def _write_fuel_log(
         self, db: AsyncSession, update: FleetUpdate, event_id: int
@@ -506,13 +560,19 @@ class EventProcessor:
             state = MachineState(machine_id=update.machine_id)
             db.add(state)
 
+        # WP-G / SPEC-004-R10: fuel_added_today and hours_worked_today used to
+        # be incremented here with a plain += and nothing ever reset them
+        # (confirmed bug — MVP_ASSESSMENT_FOR_CLAUDE.md §5 item 3). They are
+        # no longer written here; "today" is computed on read from
+        # FuelLog/HoursLog via app/services/daily_totals.compute_today_totals,
+        # scoped to the org-local calendar day. The columns remain on
+        # MachineState only for the demo sandbox's static seed data
+        # (app/api/v1/endpoints/demo.py, explicitly not touched this phase).
         if update.intent == Intent.FUEL_LOG:
             vol = float(update.entities.get("fuel_volume") or 0)
-            state.fuel_added_today      = (state.fuel_added_today or 0) + vol
             state.last_known_fuel_liters = vol   # last refuel amount
         elif update.intent == Intent.HOURS_LOG:
             hrs = float(update.entities.get("hours") or 0)
-            state.hours_worked_today   = (state.hours_worked_today or 0) + hrs
             state.last_known_hours     = hrs
 
         state.last_event_at = datetime.utcnow()
@@ -526,44 +586,10 @@ class EventProcessor:
         update.actions.extend(actions)
         update.rules_fired = rule_engine.last_fired_rule_ids
 
-    # ── Agency reply for off-topic messages ──────────────────────────────
-
-    async def _agency_reply(
-        self, update: FleetUpdate, session: Optional[SessionContext]
-    ) -> str:
-        """
-        Compact LLM call for messages that don't map to a fleet intent.
-        Reacts naturally to what the operator said, then bridges back to the machine.
-        """
-        import json
-
-        machine  = (session.machine_alias or session.machine_reg_number) if session else "машина"
-        fuel     = session.fuel_logged_today  if session else 0
-        hours    = session.hours_logged_today if session else 0
-        issues   = session.open_issue_count   if session else 0
-
-        context_line = f"Машина: {machine}. Топливо: {fuel}л. Наработка: {hours}ч."
-        if issues:
-            context_line += f" Открытых проблем: {issues}."
-
-        system = (
-            "Ты — VFM, помощник оператора строительной техники. "
-            "Оператор написал что-то не связанное с работой машины. "
-            "Ответь коротко (1-2 предложения): "
-            "сначала отреагируй на сообщение по-человечески, "
-            "затем мягко направь разговор к состоянию машины. "
-            "Не используй шаблонные фразы. Будь живым."
-            f"\nКонтекст смены: {context_line}"
-        )
-
-        try:
-            raw = (await _call_llm(system, update.raw_text)).strip()
-            if raw.startswith('{'):
-                d = json.loads(raw)
-                return d.get('reply', d.get('text', raw))
-            return raw
-        except Exception:
-            return "Понял! Если что по машине — пиши."
+    # WP-G: _agency_reply (a third, independent, free-form LLM call for
+    # off-topic messages) removed — see task_router.build_offtopic_reply's
+    # docstring. Off-topic replies now go through the one canonical
+    # template-only path (Step 8 above).
 
     # ── Step 8: Build reply ───────────────────────────────────────────────
 
