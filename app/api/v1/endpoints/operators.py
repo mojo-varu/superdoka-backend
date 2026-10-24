@@ -265,8 +265,13 @@ async def operator_machines(operator_id: int, db: AsyncSession = Depends(get_db)
         .order_by(MachineAssignment.is_active.desc())
     )).all()
 
-    return [
-        {
+    # WP-G / SPEC-004-R10: computed from events in the org-local calendar day,
+    # not the never-reset MachineState counters.
+    from app.services.daily_totals import compute_today_totals
+    result = []
+    for a, m, state in rows:
+        fuel_today, hours_today = await compute_today_totals(db, m.id)
+        result.append({
             "reg_number":        m.reg_number,
             "machine_type":      m.machine_type,
             "model":             m.model,
@@ -277,11 +282,10 @@ async def operator_machines(operator_id: int, db: AsyncSession = Depends(get_db)
                 session is not None and session.machine_id == m.id
                 and session.shift_state == "ACTIVE"
             ),
-            "fuel_today":        state.fuel_added_today   if state else 0,
-            "hours_today":       state.hours_worked_today if state else 0,
-        }
-        for a, m, state in rows
-    ]
+            "fuel_today":        fuel_today,
+            "hours_today":       hours_today,
+        })
+    return result
 
 
 @operator_router.get("/{operator_id}/timeline")

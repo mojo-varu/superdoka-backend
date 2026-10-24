@@ -207,6 +207,21 @@ def _build_t1_reply(
         return None
 
 
+def build_offtopic_reply(context_graph: dict, session: Any) -> str:
+    """
+    WP-G: the single canonical T4 (off-topic) reply path. Before this fix,
+    three independent code paths could produce an off-topic-shaped reply —
+    this function, a dead LLM branch in intelligence_router._build_agency_prompt
+    (task_router never routes T4 with needs_llm=True, so that branch was
+    unreachable), and event_processor._agency_reply (a free-form ad hoc LLM
+    call that actually ran live and overwrote whatever this function or the
+    T3 path had already set). event_processor now calls this function
+    directly instead of _agency_reply. See MVP_ASSESSMENT_FOR_CLAUDE.md §5
+    item 7 and docs/proposals/SCOPE_SECTION2_EDITS.md for the prior analysis.
+    """
+    return _build_t4_reply(context_graph, session)
+
+
 def _build_t4_reply(context_graph: dict, session: Any) -> str:
     """T4: off-topic redirect — steer operator back to machine context."""
     machine = context_graph.get("machine", {})

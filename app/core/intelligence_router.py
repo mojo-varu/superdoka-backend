@@ -220,23 +220,13 @@ def _build_agency_prompt(
     machine_name = machine.get("alias") or machine.get("reg_number") or "машина"
 
     # Task-type-aware instruction
-    if task_type == "T4":
-        shift = context_graph.get("current_shift", {})
-        if shift.get("open_issues", 0) > 0:
-            shift_detail = f"{machine_name} — есть открытые проблемы"
-        elif shift.get("fuel_rate_today", 0) > 0:
-            shift_detail = f"{machine_name} — топливо {shift.get('fuel_logged', 0)}л"
-        else:
-            shift_detail = machine_name
-
-        instructions = (
-            f"Оператор написал не по работе: '{update.raw_text.strip()}'. "
-            f"Ответ строго на русском, максимум 2 предложения: "
-            f"1) Коротко признай — одно слово или короткая фраза. "
-            f"2) Спроси о {shift_detail} — конкретно и коротко. "
-            f"Без английских слов. Без длинных предложений."
-        )
-    elif task_type == "T5":
+    # WP-G: the T4 branch that used to live here was dead code — task_router
+    # never returns T4 with needs_llm=True (off-topic is always
+    # needs_llm=False, see task_router.route()), so this function was never
+    # actually called with task_type="T4". Removed as part of collapsing the
+    # off-topic reply paths to one (task_router.build_offtopic_reply). See
+    # that function's docstring for the full history.
+    if task_type == "T5":
         anomaly = signals.get("fuel_anomaly") or signals.get("recurring_issue") or "аномалия"
         instructions = (
             f"VFM заметил: {anomaly}. "

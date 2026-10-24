@@ -691,8 +691,13 @@ async def fleet_summary(db: AsyncSession = Depends(get_db)):
         select(ActiveSession).where(ActiveSession.shift_state == "ACTIVE")
     )).scalars().all()
 
-    machines = [
-        {
+    # WP-G / SPEC-004-R10: fuel_today/hours_today computed from events in the
+    # org-local calendar day, not the never-reset MachineState counters.
+    from app.services.daily_totals import compute_today_totals
+    machines = []
+    for m, state, op in rows:
+        fuel_today, hours_today = await compute_today_totals(db, m.id)
+        machines.append({
             "id":                   m.id,
             "reg_number":           m.reg_number,
             "alias":                m.alias,
@@ -700,12 +705,10 @@ async def fleet_summary(db: AsyncSession = Depends(get_db)):
             "model":                f"{m.model} {m.year}",
             "status":               (state.status if state else "IDLE").lower(),
             "active_operator_name": op.name if op else None,
-            "fuel_today":           state.fuel_added_today   if state else 0,
-            "hours_today":          state.hours_worked_today if state else 0,
+            "fuel_today":           fuel_today,
+            "hours_today":          hours_today,
             "open_issues":          state.open_issue_count   if state else 0,
-        }
-        for m, state, op in rows
-    ]
+        })
 
     total_open_issues = sum(m["open_issues"] for m in machines)
 
@@ -773,6 +776,10 @@ async def machine_intelligence(machine_id: str, db: AsyncSession = Depends(get_d
     }
     status = state.status if state else "IDLE"
 
+    # WP-G / SPEC-004-R10: computed from events in the org-local calendar day.
+    from app.services.daily_totals import compute_today_totals
+    fuel_today, hours_today = await compute_today_totals(db, machine.id)
+
     return {
         "reg_number":          machine.reg_number,
         "machine_type":        machine.machine_type,
@@ -781,14 +788,11 @@ async def machine_intelligence(machine_id: str, db: AsyncSession = Depends(get_d
         "status_class":        "sb-warn" if status == "WARNING" else ("sb-idle" if status == "IDLE" else "sb-work"),
         "active_operator_name": active_op.name if active_op else None,
         "metrics": {
-            "fuel_today":      state.fuel_added_today   if state else 0,
-            "hours_today":     state.hours_worked_today if state else 0,
+            "fuel_today":      fuel_today,
+            "hours_today":     hours_today,
             "production_today": production_today,
             "open_issues":     state.open_issue_count   if state else 0,
-            "fuel_rate":       (
-                round((state.fuel_added_today or 0) / state.hours_worked_today, 1)
-                if state and state.hours_worked_today else 0
-            ),
+            "fuel_rate":       round(fuel_today / hours_today, 1) if hours_today else 0,
         },
         "open_issues": [
             {
