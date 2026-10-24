@@ -29,23 +29,52 @@ Operators chat with a Telegram bot (text or voice note) the way they would tell 
 
 ## 2. Where things stand today
 
-From this project's own history. Verify against the repo before relying on any line.
+From this project's own history, corrected 2026-10-24 against a direct code audit.
+See `docs/proposals/SCOPE_SECTION2_EDITS.md` for the evidence behind each change below.
+Verify against the repo before relying on any line.
 
 **Working**
 - Sandbox pipeline end to end through `POST /api/v1/vfm/update`
-- ONNX intent classifier and NER extractor
-- T1/T2/T8 style template replies for the common paths
+- Intent and entity extraction — **LLM-only** (see below; not the ONNX classifier/NER
+  pair this section previously claimed)
+- T1/T2 template replies for the common paths (confirmations, single-field clarification)
 - Machine state tracking (fuel, hours, issues), basic anomaly flag
 - Standalone state-graph runner (7 scenarios) and a 14-day fleet simulation script
 
 **Not working or not built**
 - Telegram and MAX integrations were "in progress", not live. No real user has used the system.
-- No voice, no tenant isolation, no onboarding, no waybill output, no digest, no scheduler. The watcher was designed but is not running.
-- `fuel_today` and `hours_today` in fleet intelligence accumulate across days (missing date filter). `fuel_baseline` is null, so anomaly comparison cannot fire.
-- T4 off-topic replies from the unfine-tuned local LLM were inconsistent. T4 stays template-only (section 4).
+- No voice, no tenant isolation, no onboarding, no waybill output, no digest, no scheduler.
+  The watcher process runs, but its nudge delivery is an unimplemented stub
+  (`watcher.py:194`, `# TODO: send via adapter`; `_get_owner_settings` always returns
+  `None`, `watcher.py:189-191`).
+- **No ONNX classifier or NER model files exist in the repo.** `model_loader.py`
+  defaults to `llm_only` mode (`model_loader.py:219`) unless `CLASSIFIER_MODEL_PATH`/
+  `NER_MODEL_PATH` point at directories that don't exist here. Extraction runs
+  entirely through the LLM.
+- **T5–T8 (proactive insight, proactive suggestion, owner shift summary, owner alert)
+  are fully coded but unreachable.** `task_route()` has exactly one caller, which
+  hardcodes `recipient="operator"` (`intelligence_router.py:530`) and never passes
+  `is_proactive=True` anywhere. Only T1–T4 fire in production.
+- `fuel_today` and `hours_today` have **no reset mechanism at all**, not merely a
+  missing date filter — they are incremented with `+=` on every log and never
+  cleared (`event_processor.py:511,515`), so they accumulate across calendar days
+  indefinitely. `fuel_baseline` is null/0.0 whenever a machine has under 30 days of
+  history, so anomaly comparison cannot fire until then.
+- **Operator corrections are written but never read back.** `POST /correct/{event_id}`
+  writes an immutable `CORRECTION` event; nothing reads that event type back to adjust
+  confidence, thresholds, or flag unreliable extractions. Audit trail only.
+- T4 off-topic replies from the unfine-tuned local LLM were inconsistent. T4 stays
+  template-only (section 4). Three separate code paths can currently produce a
+  T4-shaped reply (`task_router._build_t4_reply`, the T4 branch of
+  `_build_agency_prompt`, `event_processor._agency_reply`) — a structural reason to
+  expect this independent of model quality.
 - The LLM is `qwen2.5:3b-instruct` via Ollama, prompt-only. The fine-tuning run never completed.
 
-**Accuracy caveat.** The reported 99.3% intent accuracy came from a held-out split of data we generated. Treat it as unvalidated on real operator language until the golden set (section 6) contains real messages. Do not quote it externally as real-world accuracy.
+**Accuracy caveat.** The reported 99.3% intent accuracy came from a held-out split of
+data we generated. **No evaluation script or test set exists anywhere in this repo** —
+the number cannot currently be reproduced or audited, not merely "unvalidated on real
+operator language." Do not quote it externally as real-world accuracy until an eval
+set and script exist.
 
 ---
 
