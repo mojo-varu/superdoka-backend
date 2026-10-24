@@ -20,3 +20,9 @@ VFM\ Sandbox.zip
 # Local tooling
 .claude/settings.local.json
 .DS_Store
+
+# Bot channel (WP-D/WP-A) — never commit real pilot data or prod secrets
+.env.prod
+.env.test
+pilot_data*.yaml
+pilot_data*.csv
