@@ -54,6 +54,17 @@ services:
       RULES_PATH: app/rules/fleet_rules.yaml
       BOT_USERNAME: logbuk_bot
       PYTHONPATH: /app
+
+      # Telegram bot channel (WP-A). Non-secret default inline, same
+      # convention as the rest of this file; secrets below are substituted
+      # from the root .env at `docker compose` parse time (Compose's own
+      # .env lookup, separate from app/config.py's pydantic env_file) — they
+      # are never hard-coded here. See .env.example.
+      TELEGRAM_MODE: ${TELEGRAM_MODE:-polling}
+      BOT_ENV: ${BOT_ENV:-dev}
+      TELEGRAM_BOT_TOKEN_DEV: ${TELEGRAM_BOT_TOKEN_DEV:-}
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      WEBHOOK_BASE_URL: ${WEBHOOK_BASE_URL:-}
     
     # This allows the container to access 'host.docker.internal'
     # which resolves to your physical machine's IP where Ollama is running.
