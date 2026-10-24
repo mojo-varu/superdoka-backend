@@ -107,13 +107,50 @@ class MessageSource(enum.Enum):
 
 
 # ---------------------------------------------------------------------------
+# NEW (WP-B) — Org: single-tenant-today root, SPEC-011-R01/R02
+# ---------------------------------------------------------------------------
+
+class Org(Base):
+    """
+    Tenancy root. v1 seeds exactly one default org (see scripts/seed_pilot.py
+    and the WP-B migration's data step). SPEC-011-R01 requires every table to
+    carry org_id scoped through one data-access layer — that data-access
+    layer and the cross-org isolation test (AC-011-01) are NOT built in this
+    phase; this table and the org_id columns exist so they CAN be added
+    without another schema change, per the human's approved tenancy
+    decision. Do not onboard a second org before that layer and AC-011-01
+    exist as a passing test, not just a column.
+    """
+    __tablename__ = "orgs"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    name          = Column(String(200), nullable=False)
+    timezone      = Column(String(64), default="Europe/Moscow", nullable=False)   # SPEC-004-R10, SPEC-011-R12
+    digest_time   = Column(String(5), default="18:00", nullable=False)
+    quiet_hours_start = Column(String(5), default="21:00", nullable=False)         # SPEC-007 §7, not implemented this phase
+    quiet_hours_end   = Column(String(5), default="06:00", nullable=False)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = ({"extend_existing": True},)
+
+
+DEFAULT_ORG_ID = 1   # seeded by the WP-B migration; single default org for the two-machine validation
+
+
+# ---------------------------------------------------------------------------
 # Existing models (unchanged except documented)
 # ---------------------------------------------------------------------------
 
 class User(Base):
+    """
+    AMENDMENTS.md naming note: this is SPEC-011-R02's `app_user` — the table
+    is not renamed (WP-B instruction: reconcile naming differences in
+    AMENDMENTS.md rather than renaming existing tables).
+    """
     __tablename__ = "users"
 
     id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)  # SPEC-011-R01
     platform_user_id = Column(BigInteger, nullable=True, index=True)
     mobile       = Column(String(20), nullable=False, index=True)
     name         = Column(String(100), nullable=False)
@@ -123,6 +160,13 @@ class User(Base):
     is_active    = Column(Boolean, default=True, nullable=False)
     created_at   = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at   = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # NEW (WP-D/WP-B) — SPEC-016-R05 consent record, SPEC-011-R17 ("or columns
+    # on app_user" option, chosen for simplicity over a dedicated table).
+    consent_given_at = Column(DateTime, nullable=True)
+    consent_version  = Column(String(20), nullable=True)
+    # NEW — SPEC-014-R11: "blocked by user" marks unreachable, never deleted.
+    is_reachable     = Column(Boolean, default=True, nullable=False)
 
     # Relationships
     owner            = relationship("User", remote_side="User.id", backref="operators")
@@ -151,6 +195,7 @@ class Machine(Base):
     __tablename__ = "machines"
 
     id           = Column(Integer, primary_key=True, index=True)
+    org_id       = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)  # SPEC-011-R01
     reg_number   = Column(String(20), nullable=False, unique=True, index=True)
     alias        = Column(String(50), nullable=True, index=True)   # human-friendly callsign, auto-derived if not supplied
     machine_type = Column(String(100), nullable=False, index=True)
@@ -565,9 +610,10 @@ class ConversationLog(Base):
     __tablename__ = "conversation_log"
 
     id            = Column(Integer, primary_key=True, autoincrement=True)
-    operator_id   = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    org_id        = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)  # SPEC-011-R01
+    operator_id   = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)   # nullable: an inbound row from an unbound chat has no operator yet
     machine_id    = Column(Integer, ForeignKey("machines.id"), nullable=True)
-    raw_text      = Column(Text, nullable=False)
+    raw_text      = Column(Text, nullable=True)   # nullable: non-text inbound (voice/photo) populate media fields instead
     intent        = Column(String(64), nullable=True)
     confidence    = Column(Float, nullable=True)
     policy_action = Column(String(32), nullable=True)   # CONFIRM | CLARIFY | ALERT | NUDGE | ESCALATE
@@ -577,8 +623,25 @@ class ConversationLog(Base):
     source               = Column(String(32), nullable=True)
     created_at    = Column(DateTime, default=datetime.utcnow, nullable=False, index=True)
 
+    # NEW (WP-B/WP-C) — SPEC-011-R03, R04; SPEC-001-R08/R09/R10; SPEC-014-R03/R05.
+    channel            = Column(String(20), nullable=True)   # "telegram" | "max" | "rest" — NULL for pre-existing rows
+    chat_id             = Column(String(64), nullable=True, index=True)
+    update_id           = Column(String(64), nullable=True)   # Telegram's update_id as a string; NULL for non-channel rows
+    processing_status   = Column(String(20), default="received", nullable=False, index=True)  # received|processing|processed|failed
+    claimed_at           = Column(DateTime, nullable=True)   # worker claim timestamp, for the stuck-row recovery sweep
+    correlation_id       = Column(String(64), nullable=True, index=True)
+    media_file_unique_id = Column(String(128), nullable=True)   # SPEC-015-R09 voice file id, stored for later manual transcription
+    raw_update           = Column(JSON, nullable=True)   # the full raw Telegram update JSON — lets the worker re-derive NormalisedInbound exactly (app/channels/worker.py), and doubles as replay input for SPEC-010 later
+    timeline_event_id    = Column(Integer, ForeignKey("timeline_events.id"), nullable=True, index=True)
+    corrected_by          = Column(Integer, ForeignKey("timeline_events.id"), nullable=True)
+
     __table_args__ = (
         Index("idx_conv_log_operator_date", "operator_id", "created_at"),
+        Index("idx_conv_log_status", "processing_status", "claimed_at"),
+        # NULLs are never considered equal in a UNIQUE constraint (Postgres and
+        # SQLite agree on this), so pre-existing rows with channel=NULL,
+        # update_id=NULL coexist freely; only real channel deliveries dedupe.
+        UniqueConstraint("channel", "update_id", name="uq_conv_log_channel_update_id"),
         {"extend_existing": True},
     )
 
@@ -634,5 +697,116 @@ class ActiveSession(Base):
         ),
         Index("idx_active_sessions_machine", "machine_id"),
         Index("idx_active_sessions_state", "shift_state"),
+        {"extend_existing": True},
+    )
+
+
+# ---------------------------------------------------------------------------
+# NEW (WP-B) — Invite: operator onboarding via deep link
+# SPEC-001-R06/R07, SPEC-011-R10.
+#
+# AMENDMENTS.md note: MachineAssignment already has telegram_link_token /
+# telegram_link_expires_at / telegram_link_used_at columns, but that flow
+# assumes the operator's User row already exists (it just links a known
+# operator to a machine). SPEC-001-R06's invite is for a *named* operator who
+# may not have a User row yet. This table is additive and does not replace
+# the MachineAssignment link-token fields; a human should decide later
+# whether to consolidate the two mechanisms (flagged, not resolved here).
+# ---------------------------------------------------------------------------
+
+class Invite(Base):
+    __tablename__ = "invites"
+
+    id            = Column(Integer, primary_key=True, index=True)
+    org_id        = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)
+    token         = Column(String(64), nullable=False, unique=True, index=True)
+    role          = Column(String(20), nullable=False)   # "owner" | "operator"
+    operator_name = Column(String(100), nullable=True)   # the name the owner gave at invite time, pre-binding
+    machine_id    = Column(Integer, ForeignKey("machines.id"), nullable=True)   # optional: pre-bind to one machine alias
+    created_by    = Column(Integer, ForeignKey("users.id"), nullable=True)      # owner who issued it
+    expires_at    = Column(DateTime, nullable=False)
+    used_at       = Column(DateTime, nullable=True)
+    used_by       = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_at    = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = ({"extend_existing": True},)
+
+
+# ---------------------------------------------------------------------------
+# NEW (WP-B) — PendingConfirmation: staged, unconfirmed events
+# ADR-0023, SPEC-004-R15/R16 (amendment), SPEC-011-R14 (amendment).
+# ---------------------------------------------------------------------------
+
+class PendingConfirmation(Base):
+    """
+    A CONFIRM-route or implausible extraction result, staged here instead of
+    timeline_events, until the operator taps Верно (✅). Never promoted after
+    expires_at. Fixes the commit-before-confirm deviation in the pre-bot code
+    (event_processor._write_events committing before checking
+    confidence_route == CONFIRM).
+    """
+    __tablename__ = "pending_confirmations"
+
+    id               = Column(Integer, primary_key=True, index=True)
+    org_id           = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)
+    operator_id      = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    machine_id       = Column(Integer, ForeignKey("machines.id"), nullable=False, index=True)
+    event_type       = Column(String(50), nullable=False)
+    payload          = Column(JSON, nullable=False, default=dict)   # same shape as TimelineEvent.content
+    raw_text         = Column(Text, nullable=True)
+    source_conversation_id = Column(Integer, ForeignKey("conversation_log.id"), nullable=True, index=True)
+    proposed_at      = Column(DateTime, default=datetime.utcnow, nullable=False)
+    expires_at       = Column(DateTime, nullable=False, index=True)   # ADR-0023 / SPEC-004-R16 starting value: 24h
+    resolved_at      = Column(DateTime, nullable=True)
+    resolved_event_id = Column(Integer, ForeignKey("timeline_events.id"), nullable=True)
+
+    __table_args__ = (
+        Index("idx_pending_conf_unresolved", "operator_id", "resolved_at"),
+        {"extend_existing": True},
+    )
+
+
+# ---------------------------------------------------------------------------
+# NEW (WP-B) — ChatState: persisted conversation state, never in memory
+# ADR-0023, SPEC-015-R08/R13, SPEC-011-R15 (amendment).
+# ---------------------------------------------------------------------------
+
+class ChatState(Base):
+    __tablename__ = "chat_states"
+
+    id             = Column(Integer, primary_key=True, index=True)
+    org_id         = Column(Integer, ForeignKey("orgs.id"), nullable=False, default=DEFAULT_ORG_ID, server_default="1", index=True)
+    chat_id        = Column(String(64), nullable=False, index=True)
+    state_key      = Column(String(50), nullable=False)   # e.g. "awaiting_correction"
+    state_payload  = Column(JSON, nullable=False, default=dict)
+    updated_at     = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("chat_id", "state_key", name="uq_chat_state_chat_key"),
+        {"extend_existing": True},
+    )
+
+
+# ---------------------------------------------------------------------------
+# NEW (WP-B) — ChannelNotice: "already told this chat" one-time notices
+# SPEC-001-R02, SPEC-011-R16 (amendment).
+# ---------------------------------------------------------------------------
+
+class ChannelNotice(Base):
+    """
+    Deliberately NOT scoped to an org — a group chat sending the
+    "write to me privately" notice is not bound to any app_user or org at
+    the time the notice fires (AMENDMENTS.md rationale for this table).
+    """
+    __tablename__ = "channel_notices"
+
+    id          = Column(Integer, primary_key=True, index=True)
+    channel     = Column(String(20), nullable=False)
+    chat_id     = Column(String(64), nullable=False)
+    notice_key  = Column(String(50), nullable=False)   # e.g. "group_chat_not_supported"
+    sent_at     = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint("channel", "chat_id", "notice_key", name="uq_channel_notice"),
         {"extend_existing": True},
     )
