@@ -1,0 +1,62 @@
+---
+id: SPEC-018
+title: Bot test harness
+status: Draft
+phase: 1
+pillar: foundation
+scope_refs: ["§3 Pillar 2", "§9"]
+adrs: [ADR-0020]
+depends_on: [SPEC-001, SPEC-014, SPEC-015]
+---
+
+# SPEC-018: Bot test harness
+
+## 1. Purpose
+Every behaviour SPEC-014/015/016 require is testable offline, against real-shaped
+Telegram payloads, without ever calling the real Telegram API — so the bot's
+correctness does not depend on a human manually poking it with a phone every time.
+
+## 2. Scope and non-goals
+**In:** update fixtures, a fake Bot API, end-to-end tests through the webhook route,
+duplicate/retry tests, the engine/channel import-boundary static test.
+**Out:** the replay harness over real pilot traffic (SPEC-010, a different kind of
+replay) · load/performance testing (not needed at pilot scale) · live Telegram
+verification steps (written as commands for the human, never executed by tests —
+see `docs/runbooks/bot_deploy.md`, Step 4 of the build prompt).
+
+## 3. Requirements
+
+| ID | Requirement | Priority |
+|---|---|---|
+| SPEC-018-R01 | A fixture library of real-shaped Telegram update payloads MUST exist and MUST be used by all bot tests: private text message, voice message, photo message, group chat message, callback query, edited message, `/start` with a payload, `/start` without a payload. | MUST |
+| SPEC-018-R02 | A fake Bot API MUST record every outbound call (method name, chat id, text, `reply_markup`, `parse_mode`) for test assertions, with no network access and no dependency on real Telegram credentials. | MUST |
+| SPEC-018-R03 | At least one test suite MUST exercise the real webhook route end to end (HTTP request in, fake-Bot-API call out), not only the inner handler function in isolation. | MUST |
+| SPEC-018-R04 | A duplicate-delivery test MUST assert that the same `(channel, update_id)` delivered twice produces exactly one inbound row, at most one event, and at most one outbound reply. | MUST |
+| SPEC-018-R05 | A retry/backoff test MUST simulate a Telegram `retry_after` rate-limit response and assert the send is retried within the configured cap (SPEC-014-R10) and not beyond it. | MUST |
+| SPEC-018-R06 | A static test MUST fail the build if `app/core`, `app/services`, `app/db`, or `app/rules` imports `app/channels` or `aiogram`, or if anything under `app/channels` imports an engine module other than `app/channels/base.py` and `handle_inbound` (SPEC-014-R13). | MUST |
+| SPEC-018-R07 | Running the full bot test suite MUST require no network access, no real bot token, and no running Telegram process — every test runs in CI without secrets. | MUST |
+| SPEC-018-R08 | Tests added for this spec MUST NOT reduce the previously passing test count in the existing suite; a baseline pass/fail count MUST be recorded before this work starts and compared after. | MUST |
+
+## 4. Interfaces and data
+Fixtures live under a `tests/fixtures/telegram/` (or equivalent) directory, one file
+or factory function per update shape in R01. The fake Bot API is a drop-in substitute
+for whatever the aiogram `Bot` send surface is, scoped to the methods actually used.
+
+## 5. Acceptance scenarios
+
+| ID | Scenario | Proves | Level |
+|---|---|---|---|
+| AC-018-01 | Given each fixture in R01, when fed through the webhook route, then the handler processes it without raising and produces the behaviour each relevant spec (SPEC-001, SPEC-014, SPEC-015) requires for that update type. | R01, R03 | integration |
+| AC-018-02 | Given a handler sends two messages, then the fake Bot API records both calls with their exact arguments, in order, and no real network call is attempted. | R02 | unit |
+| AC-018-03 | Given the same webhook payload posted twice in one test, then assertions on row/event/reply counts pass as specified in R04. | R04 | integration |
+| AC-018-04 | Given a fake Telegram client that returns `retry_after=2` once then succeeds, then the send wrapper retries once and succeeds, consistent with SPEC-014-R10's cap. | R05 | integration |
+| AC-018-05 | Given the static import-boundary check, when run against the current `app/` tree, then it passes; when a deliberately broken import is introduced in a throwaway test fixture, the check fails. | R06 | unit (static) |
+| AC-018-06 | Given `pytest -q` run with network access disabled (e.g. via a blocking fixture or firewall rule in CI), then the full bot test suite still passes. | R07 | integration |
+| AC-018-07 | Given the baseline pass/fail count recorded before this work started, when the full suite runs after this work, then the previously-passing count is unchanged or improved, and any new failures are explained. | R08 | integration |
+
+## 6. Open questions
+- **OQ-018-1:** Which aiogram testing utilities (if any) to build the fake Bot API on top of, versus a hand-rolled stub — decide once ADR-0018 (framework) is implemented and its actual test-friendliness is known.
+- **OQ-018-2:** Whether fixtures are committed as static JSON files or generated by factory functions. Prefer factories for maintainability; no hard requirement here.
+
+## 7. Traceability
+Scope §3 Pillar 2, §9. ADR-0020 (engine/channel boundary, enforced by R06). Related specs: SPEC-001, SPEC-010, SPEC-014, SPEC-015.
