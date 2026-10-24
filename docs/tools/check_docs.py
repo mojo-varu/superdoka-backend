@@ -1,0 +1,128 @@
+#!/usr/bin/env python3
+"""Validate the SPEC/ADR set and regenerate TRACEABILITY.md.
+
+Usage: python3 docs/tools/check_docs.py [--write]
+Exit code 1 if any hard error is found. Coverage gaps are warnings.
+"""
+import re, sys, pathlib
+
+DOCS = pathlib.Path(__file__).resolve().parent.parent
+errors, warnings = [], []
+
+def front(path):
+    t = path.read_text(encoding="utf-8")
+    m = re.match(r"---\n(.*?)\n---\n", t, re.S)
+    if not m:
+        errors.append(f"{path.name}: missing front matter"); return {}, t
+    fm = {}
+    for line in m.group(1).splitlines():
+        if ":" in line:
+            k, v = line.split(":", 1); v = v.strip()
+            if v.startswith("["):
+                v = [x.strip().strip('"\'') for x in v.strip("[]").split(",") if x.strip()]
+            fm[k.strip()] = v
+    return fm, t
+
+adrs, specs = {}, {}
+for p in sorted((DOCS / "adr").glob("ADR-*.md")):
+    fm, t = front(p); adrs[fm.get("id")] = (p, fm, t)
+    if not p.name.startswith(str(fm.get("id"))): errors.append(f"{p.name}: id does not match filename")
+for p in sorted((DOCS / "specs").glob("SPEC-*.md")):
+    fm, t = front(p); specs[fm.get("id")] = (p, fm, t)
+    if not p.name.startswith(str(fm.get("id"))): errors.append(f"{p.name}: id does not match filename")
+
+# requirements and acceptance criteria
+reqs, acs = {}, {}
+for sid, (p, fm, t) in specs.items():
+    num = sid.split("-")[1]
+    for m in re.finditer(r"^\| (SPEC-%s-R\d+) \|" % num, t, re.M):
+        if m.group(1) in reqs: errors.append(f"duplicate requirement {m.group(1)}")
+        reqs[m.group(1)] = sid
+    for m in re.finditer(r"^\| (AC-%s-\d+) \| (.*)$" % num, t, re.M):
+        cells = [c.strip() for c in m.group(2).split("|")]
+        proves = cells[-3] if len(cells) >= 3 else ""
+        ids = set()
+        for r in re.finditer(r"R(\d+)\s+to\s+R(\d+)", proves):
+            for n in range(int(r.group(1)), int(r.group(2)) + 1): ids.add(f"SPEC-{num}-R{n:02d}")
+        for r in re.finditer(r"R(\d+)", proves): ids.add(f"SPEC-{num}-R{int(r.group(1)):02d}")
+        acs[m.group(1)] = (sid, ids)
+
+for ac, (sid, ids) in acs.items():
+    if not ids: errors.append(f"{ac}: 'Proves' column has no requirement ids")
+    for i in ids:
+        if i not in reqs: errors.append(f"{ac} proves unknown requirement {i}")
+
+covered = {i for _, ids in acs.values() for i in ids}
+for r in reqs:
+    if r not in covered: warnings.append(f"no acceptance scenario covers {r}")
+
+# references from ADRs to spec requirements ("Enforced by")
+def expand(text):
+    out = set(); cur = None
+    for m in re.finditer(r"(SPEC-(\d+))-R(\d+)(?:\s+to\s+R(\d+))?|,\s*R(\d+)(?:\s+to\s+R(\d+))?|\band\s+R(\d+)|\bto\s+R(\d+)", text):
+        if m.group(1):
+            cur = m.group(2); a = int(m.group(3)); b = int(m.group(4) or a)
+        elif m.group(5):
+            if cur is None: continue
+            a = int(m.group(5)); b = int(m.group(6) or a)
+        else:
+            continue
+        if cur:
+            for n in range(a, b + 1): out.add(f"SPEC-{cur}-R{n:02d}")
+    return out
+
+for aid, (p, fm, t) in adrs.items():
+    sec = re.search(r"## Enforced by\n(.*?)(\n## |\Z)", t, re.S)
+    if sec:
+        for i in expand(sec.group(1)):
+            if i not in reqs: errors.append(f"{aid} 'Enforced by' references unknown {i}")
+    for m in re.finditer(r"SPEC-\d{3}(?!-R)", t):
+        if m.group(0) not in specs: errors.append(f"{aid} references unknown spec {m.group(0)}")
+    for s in fm.get("specs", []):
+        if s not in specs: errors.append(f"{aid} front matter lists unknown spec {s}")
+
+# spec <-> adr symmetry and links
+for sid, (p, fm, t) in specs.items():
+    for a in fm.get("adrs", []):
+        if a not in adrs: errors.append(f"{sid} lists unknown ADR {a}")
+        elif sid not in adrs[a][1].get("specs", []): warnings.append(f"{sid} lists {a} but {a} does not list {sid}")
+    for d in fm.get("depends_on", []):
+        if d not in specs: errors.append(f"{sid} depends on unknown spec {d}")
+    for m in re.finditer(r"ADR-\d{4}", t):
+        if m.group(0) not in adrs: errors.append(f"{sid} mentions unknown {m.group(0)}")
+    for m in re.finditer(r"SPEC-(\d{3})-R(\d+)", t):
+        if f"SPEC-{m.group(1)}-R{int(m.group(2)):02d}" not in reqs: errors.append(f"{sid} mentions unknown requirement {m.group(0)}")
+for aid, (p, fm, t) in adrs.items():
+    if not any(aid in s[1].get("adrs", []) for s in specs.values()): warnings.append(f"{aid} is not listed by any spec")
+
+# scope section coverage
+scope_secs = ["§1","§2","§3","§4","§5","§6","§7","§8","§9","§10","§11","§12","§13","§14","§15"]
+cov = {s: set() for s in scope_secs}
+for coll in (specs, adrs):
+    for i, (p, fm, t) in coll.items():
+        for ref in fm.get("scope_refs", []):
+            m = re.match(r"(§\d+)", ref)
+            if m and m.group(1) in cov: cov[m.group(1)].add(i)
+for s, who in cov.items():
+    if not who: warnings.append(f"scope {s} is not referenced by any spec or ADR")
+
+if "--write" in sys.argv:
+    L = ["# Traceability matrix", "", "_Generated by `docs/tools/check_docs.py --write`. Do not edit by hand._", "",
+         "## Scope section → specs and ADRs", "", "| Scope section | Specs and ADRs |", "|---|---|"]
+    for s in scope_secs: L.append(f"| {s} | {', '.join(sorted(cov[s])) or '(none)'} |")
+    L += ["", "## Requirement → acceptance scenarios", "", "| Requirement | Scenarios |", "|---|---|"]
+    by_req = {}
+    for ac, (sid, ids) in acs.items():
+        for i in ids: by_req.setdefault(i, []).append(ac)
+    for r in sorted(reqs): L.append(f"| {r} | {', '.join(sorted(by_req.get(r, []))) or '**none**'} |")
+    L += ["", "## ADR status", "", "| ADR | Title | Status | Specs |", "|---|---|---|---|"]
+    for a, (p, fm, t) in sorted(adrs.items()): L.append(f"| {a} | {fm.get('title')} | {fm.get('status')} | {', '.join(fm.get('specs', []))} |")
+    L += ["", "## Spec status", "", "| Spec | Title | Status | Phase | Pillar | Requirements | Scenarios |", "|---|---|---|---|---|---|---|"]
+    for s, (p, fm, t) in sorted(specs.items()):
+        L.append(f"| {s} | {fm.get('title')} | {fm.get('status')} | {fm.get('phase')} | {fm.get('pillar')} | {sum(1 for r,o in reqs.items() if o==s)} | {sum(1 for a,(o,_) in acs.items() if o==s)} |")
+    (DOCS / "TRACEABILITY.md").write_text("\n".join(L) + "\n", encoding="utf-8")
+
+print(f"specs={len(specs)} adrs={len(adrs)} requirements={len(reqs)} scenarios={len(acs)}")
+for w in warnings: print("WARN ", w)
+for e in errors: print("ERROR", e)
+sys.exit(1 if errors else 0)
