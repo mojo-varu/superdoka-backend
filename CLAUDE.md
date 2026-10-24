@@ -6,6 +6,25 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Logbuk is a **Virtual Fleet Manager (VFM)** backend — a FastAPI service that processes operator messages (via Telegram/MAX/REST) for heavy equipment fleets. Operators send natural-language messages ("залил 50 литров", "начинаю смену на БЗ-99") which flow through an NLP pipeline (NER → LLM extraction) and are recorded as structured fleet events.
 
+## Spec-driven development (SuperDoka v1)
+
+Starting with the Telegram bot work, this repo follows spec-driven development.
+Before changing code, read `docs/README.md`, the relevant `docs/specs/SPEC-*.md`,
+the ADRs it lists, and the ten "must never do" rules in `ARCHITECTURE_VERBALIZED.md`.
+
+1. Work only on requirements in a spec whose status is Ready. For a Blocked spec, build only the parts that do not depend on the blocking ADR or open question.
+2. Do not implement anything that is not traceable to a `SPEC-NNN-Rnn` requirement. If you think something is missing, propose a spec change instead of coding it.
+3. Write tests from the `AC-` scenarios first. Reference requirement IDs in commit messages.
+4. Never edit the decision of an Accepted ADR. Propose a new ADR that supersedes it.
+5. If a spec is ambiguous or conflicts with another document, stop and report the conflict. Do not guess.
+6. Do not build anything marked "later" in `SHIPPABLE_SCOPE.md` §15, and do not add proactive rules or LLM allowlist entries without updating ADR-0010 or ADR-0003 and the spec first.
+7. Treat values labelled "starting value" as configuration, not constants.
+8. Run `python3 docs/tools/check_docs.py --write` before finishing, and keep `docs/TRACEABILITY.md` in the commit.
+9. Never mark a spec Done unless every MUST requirement has a passing scenario.
+
+This section governs process; it does not supersede anything below. Sections under
+"Architecture" still describe what exists in the code today.
+
 ## Commands
 
 ### Development (local, SQLite fallback — no Docker required)
@@ -51,6 +70,17 @@ Every inbound message flows through three pillars, coordinated via the `FleetUpd
 2. **Intelligence** — `app/core/context_llm.py` runs the extraction pipeline: injection guard → context-aware prompt builder → LLM call (Anthropic/YandexGPT/Ollama, configured via env vars) → JSON response validation → confidence calibration. Returns an `ExtractionResult` with `intent`, `entities`, and `confidence`.
 
 3. **Agency** — `app/services/event_processor.py` orchestrates the full write pipeline: operator resolution → intelligence → session/machine resolution → DB writes (atomic: `TimelineEvent` + specific log table + `MachineState` UPSERT) → rule evaluation → reply assembly.
+
+### Second architecture layer — task routing (not in the original three-pillar description)
+
+Live on top of the three pillars above, called from `event_processor._run_intelligence`:
+`app/core/task_router.py` (T1–T8 task-type routing + templates), `app/core/context_graph.py`
+(machine/operator state graph + anomaly signals), `app/core/intelligence_router.py` (the
+four-stage pipeline entry point that calls the task router), `app/core/rephraser.py`
+(post-template LLM rephrasing pass). **T1–T4 are reachable in production; T5–T8
+(proactive insight, owner summaries/alerts) are fully coded but have no caller** —
+see `MVP_ASSESSMENT_FOR_CLAUDE.md` for the evidence. Do not assume T5–T8 work without
+checking who calls `task_route()` with `is_proactive=True` or `recipient="owner"`.
 
 ### Key Data Models (`app/db/models.py`)
 - **`ActiveSession`** — one row per operator on shift; answers "who is on what machine right now" in O(1). Redis mirrors this for sub-millisecond reads.
