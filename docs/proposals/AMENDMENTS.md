@@ -116,3 +116,78 @@ to avoid new coverage-gap warnings, and SPEC-015's existing AC-015-03/04/06/08/0
 already exercise most of the behaviour these amendments formalise, so most of the new
 IDs can likely be satisfied by adding a `Proves` reference to an existing SPEC-015
 scenario rather than writing an entirely new one.
+
+---
+
+## WP-B/WP-C implementation notes (added during Step 3 — code now exists)
+
+The amendments above were written during Step 2, before any schema code existed.
+Step 3 implemented the actual tables; this section records exactly what was built and
+where it diverges from both SPEC-011's literal table names and from the Step 2
+amendment text above, since a few details only became visible while writing the
+migration (`alembic/versions/2026_10_24_bot_tenancy_and_pending_state.py`) and models
+(`app/db/models.py`).
+
+**Table naming — confirmed, not just proposed.** SPEC-011-R02 names `app_user` and
+`shift_session`; the actual code keeps `users` (`User`) and `active_sessions`
+(`ActiveSession`), per the build prompt's WP-B instruction to reconcile naming here
+rather than rename existing tables. `PendingConfirmation`, `ChatState`,
+`ChannelNotice`, `Invite`, and `Org` were added as new SQLAlchemy models with exactly
+the shape the amendments above describe (`SPEC-011-R14`–`R17`).
+
+**`Invite` vs. the existing `MachineAssignment` link-token fields — still unresolved,
+now more concrete.** `MachineAssignment` already had `telegram_link_token` /
+`telegram_link_expires_at` / `telegram_link_used_at` before this phase. The new
+`Invite` table (SPEC-001-R06/R07) is additive, not a replacement, because an
+`Invite`'s operator may not have a `User` row yet (`operator_name` is a plain string
+at invite time), whereas `MachineAssignment`'s link token assumes the operator
+already exists. **A human should decide whether to consolidate these two mechanisms**
+before a second pilot cohort is onboarded — right now there are two different ways a
+link-based binding can happen in this codebase, and nothing stops both from being used
+inconsistently.
+
+**Owner registration folded into the same `Invite` mechanism as operator invites,**
+discriminated by `Invite.role`. SPEC-001-R04 describes a separate `/start
+<owner_code>` concept; OQ-001-1 already says owner-code issuance is "manual for the
+first customers" with no settled design, so Step 3 did not build a second mechanism
+for an undecided process. If owner registration gets a real design later, this
+decision should be revisited explicitly, not left as an implicit default.
+
+**`conversation_log.raw_update` (new JSON column, not anticipated in the Step 2
+amendments above).** Needed so `app/channels/worker.py` can reconstruct the exact
+`NormalisedInbound` a webhook/polling delivery produced, without a second table. Also
+doubles as the input SPEC-010's future replay harness would read — convenient, not
+originally planned.
+
+**`conversation_log.operator_id` and `.raw_text` were loosened to nullable.** An
+inbound row from an unbound chat, or a non-text update (voice/photo), has no operator
+yet and/or no text — SPEC-011-R03 doesn't list these as nullable, but the intake
+design (insert-before-you-know-who-it-is) requires it. Flagged here since it's a
+behavior-affecting schema choice, not just a naming difference.
+
+**A real, confirmed ADR-0020 import-boundary gap — not closed in Step 3.**
+`tests/channels/test_import_boundary.py` (written and actually executed in this
+sandbox, see `docs/status` / the final report) found two violations:
+1. `app/services/engine_entrypoint.py` (engine-side) imports `app.channels.telegram`
+   for `copy_ru` (Russian strings) and `callback_data` (Telegram-specific encoding).
+   This is because `handle_inbound()`'s `OutboundMessage.text` is already final,
+   rendered text — there is no abstraction between "the engine decided what to say"
+   and "the channel decided how to say it in Telegram's format." Properly fixing this
+   means `OutboundMessage` carrying a reply *kind* plus structured parameters, with
+   rendering (including callback_data encoding) happening entirely on the
+   `app/channels/telegram` side. Not attempted in this pass — a real redesign, not a
+   patch.
+2. `app/channels/worker.py`, `webhook.py`, and `polling.py` import `app.db.database`/
+   `app.db.models` directly for the "insert the inbound row and return fast" half of
+   WP-C (`insert_received_row`), because ADR-0020's literal text gives channels no
+   sanctioned entry point for this — only `handle_inbound`, which by design is NOT
+   called until the worker picks the row back up. Two ways to close this: (a) a narrow
+   ADR-0020 amendment explicitly carving out one additional, minimal intake function
+   alongside `handle_inbound`, or (b) move the dedup-insert logic into
+   `app/services/engine_entrypoint.py` as a second function and accept that
+   ADR-0020's "exactly one function" becomes "exactly one *processing* function," with
+   intake as a documented, separate exception. Recommend (a) — a proposed, not
+   applied, ADR amendment — over silently picking one.
+
+Both are reported, confirmed-by-test findings, not guesses — see the final report for
+the exact test output.
