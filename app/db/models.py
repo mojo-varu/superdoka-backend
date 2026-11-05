@@ -244,10 +244,6 @@ class MachineAssignment(Base):
     unassigned_at   = Column(DateTime, nullable=True)
     is_active       = Column(Boolean, default=True, nullable=False)
 
-    telegram_link_token      = Column(String(100), nullable=True, unique=True, index=True)
-    telegram_link_expires_at = Column(DateTime, nullable=True)
-    telegram_link_used_at    = Column(DateTime, nullable=True)
-
     machine  = relationship("Machine", back_populates="assignments")
     operator = relationship("User", back_populates="assigned_machines")
 
@@ -703,15 +699,16 @@ class ActiveSession(Base):
 
 # ---------------------------------------------------------------------------
 # NEW (WP-B) — Invite: operator onboarding via deep link
-# SPEC-001-R06/R07, SPEC-011-R10.
+# SPEC-001-R05/R06/R07, SPEC-011-R10.
 #
-# AMENDMENTS.md note: MachineAssignment already has telegram_link_token /
-# telegram_link_expires_at / telegram_link_used_at columns, but that flow
-# assumes the operator's User row already exists (it just links a known
-# operator to a machine). SPEC-001-R06's invite is for a *named* operator who
-# may not have a User row yet. This table is additive and does not replace
-# the MachineAssignment link-token fields; a human should decide later
-# whether to consolidate the two mechanisms (flagged, not resolved here).
+# AMENDMENTS.md note: resolved 2026-11-05. The old MachineAssignment
+# telegram_link_token/_expires_at/_used_at columns and
+# MachineOperatorLinkGenerator (app/api/v1/endpoints/owners.py) were a
+# second, incompatible invite mechanism (wrong hardcoded bot username, a
+# link format the real bot's /start parser never understood). Consolidated
+# on this table; the old columns and their two call sites (/owner/assignments
+# link generation, /verify-phone) are removed. See
+# docs/proposals/AMENDMENTS.md for the full history.
 # ---------------------------------------------------------------------------
 
 class Invite(Base):
@@ -724,6 +721,7 @@ class Invite(Base):
     operator_name = Column(String(100), nullable=True)   # the name the owner gave at invite time, pre-binding
     machine_id    = Column(Integer, ForeignKey("machines.id"), nullable=True)   # optional: pre-bind to one machine alias
     created_by    = Column(Integer, ForeignKey("users.id"), nullable=True)      # owner who issued it
+    bound_user_id = Column(Integer, ForeignKey("users.id"), nullable=True)      # pre-created User row to attach platform_user_id to on redemption, instead of creating a new one
     expires_at    = Column(DateTime, nullable=False)
     used_at       = Column(DateTime, nullable=True)
     used_by       = Column(Integer, ForeignKey("users.id"), nullable=True)

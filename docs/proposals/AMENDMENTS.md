@@ -135,16 +135,21 @@ rather than rename existing tables. `PendingConfirmation`, `ChatState`,
 `ChannelNotice`, `Invite`, and `Org` were added as new SQLAlchemy models with exactly
 the shape the amendments above describe (`SPEC-011-R14`–`R17`).
 
-**`Invite` vs. the existing `MachineAssignment` link-token fields — still unresolved,
-now more concrete.** `MachineAssignment` already had `telegram_link_token` /
-`telegram_link_expires_at` / `telegram_link_used_at` before this phase. The new
-`Invite` table (SPEC-001-R06/R07) is additive, not a replacement, because an
-`Invite`'s operator may not have a `User` row yet (`operator_name` is a plain string
-at invite time), whereas `MachineAssignment`'s link token assumes the operator
-already exists. **A human should decide whether to consolidate these two mechanisms**
-before a second pilot cohort is onboarded — right now there are two different ways a
-link-based binding can happen in this codebase, and nothing stops both from being used
-inconsistently.
+**`Invite` vs. the existing `MachineAssignment` link-token fields — resolved
+2026-11-05.** `MachineAssignment` had `telegram_link_token` / `telegram_link_expires_at`
+/ `telegram_link_used_at` columns plus a `MachineOperatorLinkGenerator` class in
+`app/api/v1/endpoints/owners.py`, used by `/owner/assignments` and by
+`/verify-phone` (`app/api/v1/endpoints/operators.py`). That mechanism hardcoded the
+wrong bot username and produced a link format (`operator_{id}_AUTH_{token}`) the
+real bot's `/start` parser (`app/services/onboarding_service.bind_invite`) never
+understood — the two mechanisms were not interoperable, and only the `Invite`-based
+one actually worked against the deployed bot. Confirmed, by repo-wide grep, that
+nothing else in the sandbox depended on the old mechanism. Decision: consolidated
+on `Invite`; the old columns, `MachineOperatorLinkGenerator`, and both call sites
+(`/owner/assignments` link generation, `/verify-phone`) are removed. `Invite` gained
+`bound_user_id` so an owner can pre-create the operator's `User` row (the chat-driven
+`/addoperator` front door, SPEC-001-R05/R06) and have redemption attach
+`platform_user_id` to it instead of creating a duplicate row.
 
 **Owner registration folded into the same `Invite` mechanism as operator invites,**
 discriminated by `Invite.role`. SPEC-001-R04 describes a separate `/start
