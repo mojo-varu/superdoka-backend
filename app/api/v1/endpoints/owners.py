@@ -1,60 +1,33 @@
-from fastapi import APIRouter, Depends, HTTPException, Header
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, and_, or_
+from sqlalchemy import select, and_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import selectinload
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import logging
-import re
-import secrets
-import string
-from enum import Enum
 
 # Import your existing dependencies
+from app.config import settings
 from app.db.database import get_db
 from app.db.models import (
     User, Machine, MachineAssignment, FuelLog, HoursLog, IssueReport,
     ActivityLog, ActiveSession, MachineState, TimelineEvent,
 )
-from app.api.deps import get_any_platform_user, require_owner
+from app.api.deps import require_owner
+from app.services import fleet_admin_service
+from app.services.fleet_admin_service import REG_NUMBER_PATTERN, _derive_alias
 
 logger = logging.getLogger(__name__)
 
 owner_router = APIRouter(tags=["Owner Operations"])
-
-_MACHINE_TYPE_ABBREV: dict[str, str] = {
-    "экскаватор": "ЭКС",
-    "самосвал":   "САМ",
-    "бульдозер":  "БУЛ",
-    "грейдер":    "ГРД",
-    "кран":       "КРН",
-    "погрузчик":  "ПГР",
-    "каток":      "КАТ",
-    "трактор":    "ТРК",
-    "автогрейдер": "АГР",
-    "скрепер":    "СКР",
-}
-
-def _derive_alias(machine_type: str, reg_number: str) -> str:
-    abbrev = _MACHINE_TYPE_ABBREV.get(machine_type.lower(), machine_type[:3].upper())
-    # extract trailing region digits (2-3 chars at end of GOST plate)
-    m = re.search(r"\d{2,3}$", reg_number)
-    suffix = m.group() if m else reg_number[-3:]
-    return f"{abbrev}-{suffix}"
 
 
 class MachineCreate(BaseModel):
     machine_type: str = Field(..., example="экскаватор")
     model: str = Field(..., example="Caterpillar 320D")
     year: int = Field(..., ge=1900, le=2030, example=2018)
-    # GOST 3207-77: [АВЕКМНОРСТУХ] + 3 digits + 2 letters + 2–3 digit region code
-    reg_number: str = Field(
-        ...,
-        pattern=r"^[АВЕКМНОРСТУХ]\d{3}[АВЕКМНОРСТУХ]{2}\d{2,3}$",
-        example="А771МР77",
-    )
+    reg_number: str = Field(..., pattern=REG_NUMBER_PATTERN, example="А771МР77")
     alias: Optional[str] = Field(None, max_length=50, example="КАТ-101")
     serial_number: Optional[str] = None
     notes: Optional[str] = None
@@ -103,51 +76,11 @@ class AssignmentResponse(BaseModel):
     operator_contact: str
     assigned_at: datetime
     is_active: bool
-    telegram_link_token: Optional[str] = None
-    telegram_link_expires_at: Optional[datetime] = None
 
 class OperatorLinkResponse(BaseModel):
     telegram_link: str
     expires_at: datetime
     token: str
-
-# Link Generator Class
-class MachineOperatorLinkGenerator:
-    BOT_USERNAME = "machine_management_bot"  # Replace with your actual bot username
-
-    @staticmethod
-    def generate_token(length: int = 32) -> str:
-        """Generate secure random token"""
-        alphabet = string.ascii_letters + string.digits
-        return ''.join(secrets.choice(alphabet) for _ in range(length))
-
-    @staticmethod
-    async def generate_operator_link(
-        assignment: MachineAssignment,
-        db: AsyncSession,
-        expiry_hours: int = 24
-    ) -> str:
-        """Generate telegram link for operator onboarding"""
-        try:
-            # Generate token and expiry
-            token = MachineOperatorLinkGenerator.generate_token()
-            expires_at = datetime.utcnow() + timedelta(hours=expiry_hours)
-            
-            # Update assignment with token
-            assignment.telegram_link_token = token
-            assignment.telegram_link_expires_at = expires_at
-            await db.commit()
-            
-            # Build telegram link
-            start_param = f"operator_{assignment.id}_AUTH_{token}"
-            link = f"https://t.me/{MachineOperatorLinkGenerator.BOT_USERNAME}?start={start_param}"
-            
-            logger.info(f"Generated operator link for assignment {assignment.id}")
-            return link
-            
-        except Exception as e:
-            logger.error(f"Failed to generate operator link: {str(e)}")
-            raise
 
 class OwnerRegisterRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -281,33 +214,31 @@ async def add_machine(
     current_user: User = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
-    """Add new machine"""
-    try:
-        resolved_alias = machine.alias or _derive_alias(machine.machine_type, machine.reg_number)
-        db_machine = Machine(
-            reg_number=machine.reg_number,
-            alias=resolved_alias,
-            machine_type=machine.machine_type,
-            model=machine.model,
-            year=machine.year,
-            owner_id=current_user.id,
-            serial_number=machine.serial_number,
-            notes=machine.notes
-        )
-        db.add(db_machine)
-        await db.commit()
-        await db.refresh(db_machine)
-    except IntegrityError:
-        await db.rollback()
+    """Add new machine. SPEC-001-R05."""
+    result = await fleet_admin_service.add_machine(
+        db,
+        owner=current_user,
+        reg_number=machine.reg_number,
+        machine_type=machine.machine_type,
+        model=machine.model,
+        year=machine.year,
+        alias=machine.alias,
+        serial_number=machine.serial_number,
+        notes=machine.notes,
+    )
+    if result.outcome == fleet_admin_service.MachineOutcome.DUPLICATE_REG_NUMBER:
         raise HTTPException(
             status_code=409,
             detail=f"Machine '{machine.reg_number}' is already registered"
         )
-    except Exception as e:
-        await db.rollback()
-        logger.error(f"Error adding machine: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+    if result.outcome == fleet_admin_service.MachineOutcome.DUPLICATE_ALIAS:
+        resolved_alias = machine.alias or _derive_alias(machine.machine_type, machine.reg_number)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Alias '{resolved_alias}' is already used by another machine"
+        )
 
+    db_machine = result.machine
     try:
         activity = ActivityLog(
             user_id=current_user.id,
@@ -345,53 +276,31 @@ async def add_operator(
     current_user: User = Depends(require_owner()),
     db: AsyncSession = Depends(get_db)
 ):
-    """Add new operator"""
-    try:
-        # Check if operator already exists for this owner
-        existing = await db.execute(
-            select(User).where(
-                and_(
-                    User.mobile == operator.mobile,
-                    User.owner_id == current_user.id,
-                    User.user_type == "OPERATOR"
-                )
-            )
-        )
-        if existing.scalar_one_or_none():
-            raise HTTPException(status_code=400, detail="Operator already exists for this owner")
+    """Add new operator. SPEC-001-R05."""
+    result = await fleet_admin_service.add_operator(
+        db, owner=current_user, name=operator.name, mobile=operator.mobile,
+    )
+    if result.outcome == fleet_admin_service.OperatorOutcome.DUPLICATE:
+        raise HTTPException(status_code=400, detail="Operator already exists for this owner")
 
-        # Create operator
-        db_operator = User(
-            name=operator.name,
-            mobile=operator.mobile,
-            platform_user_id=operator.platform_user_id,
-            company_name=operator.company_name,
-            user_type="OPERATOR",
-            owner_id=current_user.id
-        )
-        
-        db.add(db_operator)
+    db_operator = result.operator
+    if operator.platform_user_id is not None or operator.company_name is not None:
+        db_operator.platform_user_id = operator.platform_user_id
+        db_operator.company_name = operator.company_name
         await db.commit()
         await db.refresh(db_operator)
-        
-        # Log activity
-        activity = ActivityLog(
-            user_id=current_user.id,
-            action="OPERATOR_ADDED",
-            entity_type="USER",
-            entity_id=db_operator.id,
-            details=f"Added operator {operator.name} with mobile {operator.mobile}"
-        )
-        db.add(activity)
-        await db.commit()
-        
-        return db_operator
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error adding operator: {str(e)}")
-        raise HTTPException(status_code=500, detail="Internal server error")
+
+    activity = ActivityLog(
+        user_id=current_user.id,
+        action="OPERATOR_ADDED",
+        entity_type="USER",
+        entity_id=db_operator.id,
+        details=f"Added operator {operator.name} with mobile {operator.mobile}"
+    )
+    db.add(activity)
+    await db.commit()
+
+    return db_operator
 
 @owner_router.get("/operators", response_model=List[OperatorResponse])
 async def get_operators(
@@ -472,11 +381,13 @@ async def assign_operator(
                 detail=f"Operator '{operator.name}' is already assigned to machine '{machine.alias or machine.reg_number}'"
             )
         
-        # Generate telegram link
-        telegram_link = await MachineOperatorLinkGenerator.generate_operator_link(
-            db_assignment, db
+        # Generate operator invite (SPEC-001-R06) — the assignment above
+        # already exists, so this reuses it rather than creating a second row.
+        invite = await fleet_admin_service.create_operator_invite(
+            db, owner=current_user, operator=operator, machine_id=machine.id,
         )
-        
+        telegram_link = fleet_admin_service.build_invite_link(settings.BOT_USERNAME, invite.token)
+
         # Log activity
         activity = ActivityLog(
             user_id=current_user.id,
@@ -487,11 +398,11 @@ async def assign_operator(
         )
         db.add(activity)
         await db.commit()
-        
+
         return OperatorLinkResponse(
             telegram_link=telegram_link,
-            expires_at=db_assignment.telegram_link_expires_at,
-            token=db_assignment.telegram_link_token
+            expires_at=invite.expires_at,
+            token=invite.token,
         )
         
     except HTTPException:
