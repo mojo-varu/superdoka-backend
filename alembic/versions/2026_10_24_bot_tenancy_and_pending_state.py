@@ -12,6 +12,7 @@ Create Date: 2026-10-24
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Sequence, Union
 
 import sqlalchemy as sa
@@ -44,7 +45,7 @@ def upgrade() -> None:
             sa.column("name", sa.String()),
             sa.column("created_at", sa.DateTime()),
         ),
-        [{"id": DEFAULT_ORG_ID, "name": "Default Org", "created_at": sa.func.now()}],
+        [{"id": DEFAULT_ORG_ID, "name": "Default Org", "created_at": datetime.utcnow()}],
     )
 
     # ---- org_id on existing tables ------------------------------------
