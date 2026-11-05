@@ -83,6 +83,41 @@ UNKNOWN_COMMAND = "Не знаю такую команду. Напишите /he
 # --- Flood limit (SPEC-016-R02) ---------------------------------------------
 FLOOD_LIMITED = "Слишком много сообщений подряд — подождите минуту."
 
+# --- Owner fleet admin commands (SPEC-001-R05/R06/R13) ----------------------
+OWNER_ONLY_COMMAND = "Эта команда доступна только владельцу."
+
+ADDMACHINE_USAGE = "/addmachine <рег.номер> <тип> <псевдоним>\nНапример: /addmachine А771МР77 экскаватор КАТ-101"
+
+
+def addmachine_success(alias: str, reg_number: str) -> str:
+    return f"Машина добавлена: {alias} ({reg_number})."
+
+
+def addmachine_duplicate_alias(alias: str) -> str:
+    return f"Псевдоним «{alias}» уже используется другой машиной. Выберите другой."
+
+
+def addmachine_duplicate_reg(reg_number: str) -> str:
+    return f"Машина с номером {reg_number} уже зарегистрирована."
+
+
+ADDOPERATOR_USAGE = (
+    "/addoperator <имя>, <телефон>[, <псевдоним машины>]\n"
+    "Например: /addoperator Иван Петров, +79991234567, КАТ-101"
+)
+ADDOPERATOR_DUPLICATE = "Оператор с этим телефоном уже добавлен."
+
+
+def addoperator_success(name: str, invite_link: str) -> str:
+    return f"Оператор {name} добавлен. Ссылка для регистрации в Telegram:\n{invite_link}"
+
+
+def addoperator_unknown_machine_alias(alias: str) -> str:
+    return (
+        f"Оператор добавлен, но машина с псевдонимом «{alias}» не найдена — "
+        "назначьте машину отдельно."
+    )
+
 
 def confirm_fuel(volume: float) -> str:
     return f"Принял, {volume:g} литров топлива. Всё верно?"

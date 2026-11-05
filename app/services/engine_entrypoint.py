@@ -38,9 +38,10 @@ from app.schemas.channel import ChatType, InlineButton, MediaKind, NormalisedInb
 # side — a real redesign, not a quick patch, left as a reported follow-up
 # rather than attempted half-done this late in the task.
 from app.channels.telegram import callback_data, copy_ru
+from app.config import settings
 from app.db.models import ChannelNotice, ChatState, ConversationLog, PendingConfirmation, User
 from app.schemas.fleet_update import ConfidenceRoute, FleetUpdate, Intent, MessageSource, Modality
-from app.services import confirmation_service, correction_service, onboarding_service
+from app.services import confirmation_service, correction_service, fleet_admin_service, onboarding_service
 from app.services.event_processor import event_processor
 
 logger = logging.getLogger(__name__)
@@ -120,8 +121,96 @@ async def _dispatch(db: AsyncSession, inbound: NormalisedInbound) -> list[Outbou
     if pending_state is not None:
         return await _handle_correction_text(db, inbound, user, pending_state, conv_row)
 
+    # 9.5. Owner-only fleet admin commands — SPEC-001-R05/R06/R13.
+    if inbound.command in ("/addmachine", "/addoperator"):
+        if user.user_type != "OWNER":
+            conv_row.processing_status = "processed"
+            await db.commit()
+            return [OutboundMessage(chat_id=inbound.chat_id, text=copy_ru.OWNER_ONLY_COMMAND)]
+        if inbound.command == "/addmachine":
+            return await _handle_add_machine(db, inbound, user, conv_row)
+        return await _handle_add_operator(db, inbound, user, conv_row)
+
     # 10. Normal operator message — the existing understanding/agency pipeline.
     return await _handle_operator_message(db, inbound, user, conv_row)
+
+
+# --- Owner fleet admin commands ------------------------------------------------
+
+async def _handle_add_machine(
+    db: AsyncSession, inbound: NormalisedInbound, user: User, conv_row: ConversationLog
+) -> list[OutboundMessage]:
+    """
+    SPEC-001-R05: chat-driven machine add. Deliberate v1 simplification —
+    this 3-token command captures only what's needed to start logging
+    against the machine (reg number, type, alias); model/year default to ""
+    and the current year. Full specs can be filled in later via REST/CSV.
+    """
+    conv_row.processing_status = "processed"
+    tokens = (inbound.command_args or "").split()
+    if len(tokens) != 3:
+        await db.commit()
+        return [OutboundMessage(chat_id=inbound.chat_id, text=copy_ru.ADDMACHINE_USAGE)]
+
+    reg_number, machine_type, alias = tokens
+    result = await fleet_admin_service.add_machine(
+        db, owner=user, reg_number=reg_number, machine_type=machine_type,
+        model="", year=datetime.utcnow().year, alias=alias,
+    )
+
+    if result.outcome == fleet_admin_service.MachineOutcome.DUPLICATE_REG_NUMBER:
+        text = copy_ru.addmachine_duplicate_reg(reg_number)
+    elif result.outcome == fleet_admin_service.MachineOutcome.DUPLICATE_ALIAS:
+        text = copy_ru.addmachine_duplicate_alias(alias)
+    else:
+        text = copy_ru.addmachine_success(result.machine.alias, result.machine.reg_number)
+
+    conv_row.vfm_reply = text
+    await db.commit()
+    return [OutboundMessage(chat_id=inbound.chat_id, text=text)]
+
+
+async def _handle_add_operator(
+    db: AsyncSession, inbound: NormalisedInbound, user: User, conv_row: ConversationLog
+) -> list[OutboundMessage]:
+    """SPEC-001-R06: chat-driven operator add + invite. Comma-separated
+    (names can be two words, e.g. "Иван Петров")."""
+    conv_row.processing_status = "processed"
+    fields = [f.strip() for f in (inbound.command_args or "").split(",")]
+    if len(fields) not in (2, 3) or not all(fields[:2]):
+        await db.commit()
+        return [OutboundMessage(chat_id=inbound.chat_id, text=copy_ru.ADDOPERATOR_USAGE)]
+
+    name, mobile = fields[0], fields[1]
+    machine_alias = fields[2] if len(fields) == 3 and fields[2] else None
+
+    result = await fleet_admin_service.add_operator(db, owner=user, name=name, mobile=mobile)
+    if result.outcome == fleet_admin_service.OperatorOutcome.DUPLICATE:
+        conv_row.vfm_reply = copy_ru.ADDOPERATOR_DUPLICATE
+        await db.commit()
+        return [OutboundMessage(chat_id=inbound.chat_id, text=copy_ru.ADDOPERATOR_DUPLICATE)]
+
+    new_operator = result.operator
+    machine_id = None
+    if machine_alias is not None:
+        machine = await fleet_admin_service.find_machine_by_alias(db, owner=user, alias=machine_alias)
+        if machine is None:
+            # The operator row already exists at this point — deliberately
+            # not rolled back. The owner can retry the assignment/invite
+            # separately once the alias is corrected, rather than losing the
+            # operator they just successfully added.
+            text = copy_ru.addoperator_unknown_machine_alias(machine_alias)
+            conv_row.vfm_reply = text
+            await db.commit()
+            return [OutboundMessage(chat_id=inbound.chat_id, text=text)]
+        machine_id = machine.id
+
+    invite = await fleet_admin_service.create_operator_invite(db, owner=user, operator=new_operator, machine_id=machine_id)
+    link = fleet_admin_service.build_invite_link(settings.BOT_USERNAME, invite.token)
+    text = copy_ru.addoperator_success(new_operator.name, link)
+    conv_row.vfm_reply = text
+    await db.commit()
+    return [OutboundMessage(chat_id=inbound.chat_id, text=text)]
 
 
 # --- Conversation log row ---------------------------------------------------
