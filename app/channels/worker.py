@@ -22,7 +22,7 @@ import logging
 from datetime import datetime, timedelta
 from typing import Optional
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -132,14 +132,23 @@ class Worker:
         chat_id_for_release: Optional[str] = None
         try:
             async for db in get_async_session():
-                result = await db.execute(select(ConversationLog).where(ConversationLog.id == row_id))
-                row = result.scalar_one_or_none()
-                if row is None or row.processing_status != "received":
-                    return
-
-                row.processing_status = "processing"
-                row.claimed_at = datetime.utcnow()
+                # Atomic claim: the WHERE guard means only one process can ever
+                # flip this row from 'received' to 'processing', even when more
+                # than one Worker polls the same table concurrently (SPEC-014-R04
+                # sanctions a separate `python -m app.channels.worker` process
+                # alongside the in-app one — the old select-then-update here had
+                # a race window between two such processes).
+                claim = await db.execute(
+                    update(ConversationLog)
+                    .where(ConversationLog.id == row_id, ConversationLog.processing_status == "received")
+                    .values(processing_status="processing", claimed_at=datetime.utcnow())
+                )
                 await db.commit()
+                if claim.rowcount != 1:
+                    return   # already claimed by another worker, or no longer 'received'
+
+                result = await db.execute(select(ConversationLog).where(ConversationLog.id == row_id))
+                row = result.scalar_one()
                 chat_id_for_release = row.chat_id
 
                 inbound = parse_inbound(row.raw_update or {})

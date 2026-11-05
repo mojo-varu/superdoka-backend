@@ -60,12 +60,25 @@ async def lifespan(app: FastAPI):
     # by design, so we catch that specific case here rather than letting it
     # take the whole app down.
     bot_worker_task = None
+    poll_task = None
     try:
         from app.channels.settings import get_bot_settings
-        get_bot_settings()   # raises BotConfigError if unconfigured — never logs the values either way
+        bot_settings = get_bot_settings()   # raises BotConfigError if unconfigured — never logs the values either way
         from app.channels.worker import worker as bot_worker
         bot_worker_task = asyncio.create_task(bot_worker.run())
         logger.info("Bot worker background task started")
+
+        # TELEGRAM_MODE=polling: run the poll loop in this same process too,
+        # so local dev is a single `uvicorn app.main:app --reload` command —
+        # no second terminal, and no second Worker instance polling the same
+        # table (that would just be wasted contention now that the claim in
+        # app/channels/worker.py is atomic, but there's still no reason to run
+        # two in dev). `python -m app.channels.telegram.polling` remains
+        # available as a standalone entry point if ever needed separately.
+        if bot_settings.mode == "polling":
+            from app.channels.telegram.polling import _poll_loop
+            poll_task = asyncio.create_task(_poll_loop())
+            logger.info("Telegram polling loop started in-process (TELEGRAM_MODE=polling)")
     except Exception as e:
         logger.info(f"Bot worker not started (bot channel unconfigured or failed init): {e}")
 
@@ -90,6 +103,14 @@ async def lifespan(app: FastAPI):
         except asyncio.CancelledError:
             pass
         logger.info("Bot worker stopped cleanly")
+
+    if poll_task is not None:
+        poll_task.cancel()
+        try:
+            await poll_task
+        except asyncio.CancelledError:
+            pass
+        logger.info("Telegram polling loop stopped cleanly")
 
 
 # ---------------------------------------------------------------------------

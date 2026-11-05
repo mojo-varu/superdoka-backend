@@ -1,10 +1,19 @@
 """
 app/channels/telegram/polling.py
 
-`python -m app.channels.telegram.polling` — local-dev intake mode
-(TELEGRAM_MODE=polling). Shares insert_received_row with webhook.py
-(SPEC-014-R01) and the same worker consumes rows either way — polling only
-replaces how rows get into the `received` state, not what happens after.
+Local-dev intake mode (TELEGRAM_MODE=polling). `_poll_loop()` is started
+in-process by app/main.py's lifespan when TELEGRAM_MODE=polling, so the
+normal dev workflow is a single `uvicorn app.main:app --reload` — see
+docs/runbooks/local_dev.md. `python -m app.channels.telegram.polling` (this
+module's __main__) remains available as a standalone entry point (polling
+with no FastAPI app running at all), but running both at once would start
+two Worker instances against the same table; the claim in worker.py is
+atomic so that's merely wasteful, not unsafe, but there's no reason to do it
+in dev.
+
+Shares insert_received_row with webhook.py (SPEC-014-R01) and the same
+worker consumes rows either way — polling only replaces how rows get into
+the `received` state, not what happens after.
 
 The admin CLI refuses to combine this with BOT_ENV=prod while a webhook is
 set (see admin.py) — never run polling against the prod token with a

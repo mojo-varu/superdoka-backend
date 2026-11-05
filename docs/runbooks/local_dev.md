@@ -17,22 +17,18 @@ Document only — nothing here is executed by this task.
 ```bash
 cp .env.example .env   # if starting fresh; otherwise your existing .env already has the dev token
 # edit .env: TELEGRAM_MODE=polling, BOT_ENV=dev
-poetry install
+poetry install         # now pulls in aiogram too — see pyproject.toml
 poetry run alembic upgrade head
 poetry run uvicorn app.main:app --reload
 ```
 
-With `TELEGRAM_MODE=polling`, the app's own lifespan (`app/main.py`) starts
-the bot worker as a background asyncio task automatically — **but not the
-polling loop itself**, which is a separate process:
-
-```bash
-poetry run python -m app.channels.telegram.polling
-```
-
-Run this in a second terminal alongside `uvicorn`. (A cleaner single-process
-setup is a reasonable follow-up — not built this phase; see the final
-report's deferred-items list.)
+That's the whole dev workflow — one process, one command. With
+`TELEGRAM_MODE=polling`, the app's own lifespan (`app/main.py`) starts both
+the bot worker **and** the Telegram poll loop as background asyncio tasks
+automatically. There is no second terminal to run. (Running
+`python -m app.channels.telegram.polling` separately alongside `uvicorn` is
+still possible but pointless — it would just start a second, redundant
+worker against the same table. See that module's docstring.)
 
 ## Option B — Docker Compose (same as the existing demo flow)
 
@@ -42,10 +38,10 @@ docker compose up -d
 
 Add the new env vars to `.env` (names only, see `.env.example`):
 `TELEGRAM_MODE=polling`, `BOT_ENV=dev`, `TELEGRAM_BOT_TOKEN_DEV` (already
-set). `docker-compose.yml`'s `api` service now substitutes these in
-(WP-A). You'd still run the polling process separately, either as a second
-`docker compose exec` or added as its own service later — not built this
-phase.
+set). `docker-compose.yml`'s `api` service substitutes these in (WP-A). The
+`api` container runs `uvicorn app.main:app`, so the same single-process
+in-app polling loop applies here too — nothing extra to run or configure
+for the bot specifically.
 
 ## Testing the flow end to end
 
