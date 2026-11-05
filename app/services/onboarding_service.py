@@ -71,6 +71,20 @@ async def bind_invite(
         # owner. Not re-designed in this pass (AMENDMENTS.md flags it).
         return BindResult(BindOutcome.ALREADY_BOUND_ELSEWHERE, existing)
 
+    if invite.bound_user_id is not None:
+        # The owner pre-created this operator's User row (SPEC-001-R05/R06
+        # chat-driven onboarding, fleet_admin_service.add_operator) — attach
+        # platform_user_id to it instead of creating a duplicate row.
+        bound_result = await db.execute(select(User).where(User.id == invite.bound_user_id))
+        bound_user = bound_result.scalar_one_or_none()
+        if bound_user is not None:
+            bound_user.platform_user_id = platform_user_id
+            invite.used_at = datetime.utcnow()
+            invite.used_by = bound_user.id
+            await db.commit()
+            await db.refresh(bound_user)
+            return BindResult(BindOutcome.BOUND, bound_user)
+
     user = User(
         org_id=invite.org_id,
         platform_user_id=platform_user_id,

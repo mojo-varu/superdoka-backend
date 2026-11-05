@@ -10,6 +10,10 @@ class Settings(BaseSettings):
     # (verified: only this declaration references it) — the new bot channel
     # reads TELEGRAM_BOT_TOKEN_DEV/_PROD via app/channels/settings.py instead.
     TELEGRAM_BOT_TOKEN: Optional[str] = None
+    # SPEC-001-R06: used to build the operator invite deep link
+    # (t.me/<bot>?start=<token>) — docker-compose.yml already passes this,
+    # nothing previously read it via pydantic-settings.
+    BOT_USERNAME: str = "superdoka_bot"
     S3_BUCKET: str = ""
     GROUP_MESSAGE_SECRET_KEY: str = "your-secret-key-change-in-env"
     
